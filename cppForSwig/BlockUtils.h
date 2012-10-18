@@ -290,7 +290,7 @@ private:
    vector<ColorIssue> issues_;
 };
 
-class ColorMn
+class ColorMan
 {
 public:
     typedef vector<IdxColorID> TxColors;
