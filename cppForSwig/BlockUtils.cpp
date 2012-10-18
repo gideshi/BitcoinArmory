@@ -36,7 +36,8 @@ TxIOPair::TxIOPair(void) :
    txOfInputZC_(NULL),
    indexOfInputZC_(0),
    isTxOutFromSelf_(false),
-   isFromCoinbase_(false) {}
+   isFromCoinbase_(false),
+   colorCache_(COLOR_UNKNOWN) {}
 
 //////////////////////////////////////////////////////////////////////////////
 TxIOPair::TxIOPair(uint64_t  amount) :
@@ -50,7 +51,8 @@ TxIOPair::TxIOPair(uint64_t  amount) :
    txOfInputZC_(NULL),
    indexOfInputZC_(0) ,
    isTxOutFromSelf_(false),
-   isFromCoinbase_(false) {}
+   isFromCoinbase_(false),
+   colorCache_(COLOR_UNKNOWN){}
 
 //////////////////////////////////////////////////////////////////////////////
 TxIOPair::TxIOPair(TxRef* txPtrO, uint32_t txoutIndex) :
@@ -62,7 +64,8 @@ TxIOPair::TxIOPair(TxRef* txPtrO, uint32_t txoutIndex) :
    txOfInputZC_(NULL),
    indexOfInputZC_(0),
    isTxOutFromSelf_(false),
-   isFromCoinbase_(false)
+   isFromCoinbase_(false),
+   colorCache_(COLOR_UNKNOWN)
 { 
    setTxOut(txPtrO, txoutIndex);
 }
@@ -78,7 +81,8 @@ TxIOPair::TxIOPair(TxRef*    txPtrO,
    txOfInputZC_(NULL),
    indexOfInputZC_(0),
    isTxOutFromSelf_(false),
-   isFromCoinbase_(false)
+   isFromCoinbase_(false),
+   colorCache_(COLOR_UNKNOWN)
 { 
    setTxOut(txPtrO, txoutIndex);
    setTxIn (txPtrI, txinIndex );
@@ -312,6 +316,18 @@ void TxIOPair::pprintOneLine(void)
            (hasTxOutZC() ? 1 : 0),
            (hasTxInZC() ? 1 : 0));
 
+}
+
+IdxColorID TxIOPair::getColor()
+{
+    if (colorCache_ != COLOR_UNKNOWN)
+        return colorCache_;
+    if (hasTxOutInMain())
+    {
+        ColorMan& colorMan = BlockDataManager_FileRefs::GetInstance().getColorMan();
+        colorCache_ = colorMan.getTxOColor(txPtrOfOutput_->getThisHash(), indexOfOutput_);
+    }
+    return colorCache_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -807,7 +823,7 @@ void BlockDataManager_FileRefs::insertRegisteredTxIfNew(HashString txHash)
 //  a list of transactions that are relevant to the registered wallets.
 //
 //  Also, this takes a raw pointer to memory, because it is assumed that 
-//  the data is being buffered and not converted/parsed for Tx objects, yet.
+//  the data is being buffered and not converted/parsd for Tx objects, yet.
 //
 //  If the txSize and offsets have been pre-calculated, you can pass them 
 //  in, or pass {0, NULL, NULL} to have it calculated for you.
@@ -1576,7 +1592,8 @@ BlockDataManager_FileRefs::BlockDataManager_FileRefs(void) :
       GenesisHash_(0),
       GenesisTxHash_(0),
       MagicBytes_(0),
-      allRegAddrScannedUpToBlk_(0)
+      allRegAddrScannedUpToBlk_(0),
+      colorMan_(this)
 {
    headerMap_.clear();
    txHintMap_.clear();
@@ -2533,7 +2550,10 @@ uint32_t BlockDataManager_FileRefs::parseEntireBlockchain( string   blkdir,
             nBlkRead++;
             nBytesRead += nextBlkSize;
             bsb.reader().advance(nextBlkSize);
+            
+//            if (nBlkRead>1000) break; // hach 
          }
+//         if (nBlkRead>1000) break; //hach
       }
       globalCache.openFile(fnum-1, blkfile);
       TIMER_STOP("ScanBlockchain");
@@ -3592,24 +3612,212 @@ bool BlockDataManager_FileRefs::isTxFinal(Tx & tx)
       return (time(NULL)>tx.getLockTime()+86400);
 }
 
+ColorMan::ColorMan(BlockDataManager_FileRefs *bdm)
+    :bdm_(bdm), lastScannedBlock_(-1)
+{
+}
 
+IdxColorID ColorMan::getTxOColor(const HashString &txhash, uint32_t idx)
+{
+    Tx tx = getBDM().getTxByHash(txhash);
+    if (!tx.isInitialized()) return COLOR_UNKNOWN;
+    uint32_t bh = tx.getBlockHeight();
 
+    if (bh == UINT32_MAX) 
+        // we won't color transactions which are not yet in blocks.
+        return COLOR_UNKNOWN; 
+    
+    if (bh > lastScannedBlock_)
+        scanColoredTransactionsUpTo(bh);
+    return getTxOColorRaw(txhash, idx);
+}
+     
+IdxColorID ColorMan::getTxOColorRaw(const HashString &txhash, uint32_t idx)
+{
+    map<HashString, TxColors>::const_iterator it = coloredTransactions_.find(txhash);
+    if (it == coloredTransactions_.end())
+        return COLOR_UNCOLORED;
+    else
+        return it->second[idx];
+}
 
+struct TxEltColor
+{
+    uint64_t amount_;
+    IdxColorID color_;
+    TxEltColor(uint64_t amount, IdxColorID color)
+        :amount_(amount), color_(color)
+        {}
+};
 
+typedef vector<TxEltColor> TxElts;
 
+bool ComputeTxEltColors(const TxElts& inputs, TxElts& outputs)
+{
+     IdxColorID cur_color = COLOR_UNKNOWN;
+     uint64_t cur_amount = 0;
+     TxElts::const_iterator ii = inputs.begin();
+     
+     for (TxElts::iterator oi = outputs.begin(); oi != outputs.end(); ++oi)
+     {
+         uint64_t want_amount = oi->amount_;
+         
+         while ((cur_amount < want_amount) && (ii != inputs.end()))
+         {
+             if (cur_amount == 0) 
+                 cur_color = ii->color_;
+             else if (cur_color != ii->color_)
+                 cur_color = COLOR_UNCOLORED;
+               
+             cur_amount += ii->amount_;
+             ++ii;
+         }
 
+         if (cur_amount < want_amount)
+             //transaction is invalid if sum(inputs) > sum(outputs)
+             return false;     
 
+         oi->color_ = cur_color;
+         cur_amount -= oi->amount_;
+     }
+     return true;
+}
 
+bool ColorMan::computeTxColors(Tx& tx)
+{
+    uint32_t numOutputs = tx.getNumTxOut();
+    TxColors txc(numOutputs, COLOR_UNCOLORED);
+    HashString txhash = tx.getThisHash();
 
+    cout << "computeTxColors: " << txhash.toHexStr() << endl;
+    
+    TxElts inputs, outputs;
+    uint32_t numInputs = tx.getNumTxIn();
+    bool isCoinBaseTx = false;
+    
+    for (int i = 0; i < numInputs; ++i)
+    {
+        OutPoint op = tx.getTxIn(i).getOutPoint();
+        
+        if (op.getTxHashRef() == BtcUtils::EmptyHash_)
+        {
+            isCoinBaseTx = true;
+            break;
+        }
+        
+        HashString prevTxHash = op.getTxHash();
+        Tx prevTx = getBDM().getTxByHash(prevTxHash);
+        if (!prevTx.isInitialized()) return false;
+        
+        TxOut txo = prevTx.getTxOut(op.getTxOutIndex());
+        uint64_t amount = txo.getValue();
+        
+        IdxColorID color = COLOR_UNKNOWN;
+        
+        map<OutPoint, IdxColorID>::const_iterator cit = colorIssueMap_.find(op);
+        if (cit != colorIssueMap_.end())
+            color = cit->second;
+        else
+            color = getTxOColorRaw(prevTxHash, op.getTxOutIndex());
+        
+        inputs.push_back(TxEltColor(amount, color));
+        outstandingColoredOutpoints_.erase(op);
+    }
+    
+    if (!isCoinBaseTx)
+    {
+        for (int i = 0; i < numOutputs; ++i)
+        {
+            TxOut txo = tx.getTxOut(i);
+            outputs.push_back(TxEltColor(txo.getValue(), COLOR_UNKNOWN));
+        }
+        // compute colors and apply them
+        if (ComputeTxEltColors(inputs, outputs)) 
+            for (int i = 0; i < numOutputs; ++i)
+                txc[i] = outputs[i].color_;
+    }
+    
+    // override colors via issuance, notice new outstanding colored outpoints
+    for (int i = 0; i < numOutputs; ++i)
+    {
+        OutPoint op(txhash, i);
+        
+        // override color of issued outputs
+        map<OutPoint, IdxColorID>::const_iterator cit = colorIssueMap_.find(op);
+        if (cit != colorIssueMap_.end())
+            txc[i] = cit->second;
+        
+        if (txc[i] != COLOR_UNCOLORED)
+            outstandingColoredOutpoints_.insert(op);
+    }
+    
+    coloredTransactions_.insert(pair<HashString, TxColors>(txhash, txc));
+    
+    return true;
+}
 
+void ColorMan::scanColoredTransactionsAt(uint32_t blockHeight)
+{
+    lastScannedBlock_ = blockHeight;
 
+    BlockHeader & bhr = *(getBDM().getHeadersByHeightRef()[blockHeight]);
+    vector<TxRef*> const & txlist = bhr.getTxRefPtrList();
+    bhr.getBlockFilePtr().preCacheThisChunk();
+    
+    ///// LOOP OVER ALL TX FOR THIS HEADER/////
+    for(uint32_t itx=0; itx<txlist.size(); itx++)
+    {
+        Tx tx = txlist[itx]->getTxCopy();
+        uint32_t numInputs = tx.getNumTxIn();
+        uint32_t numOutputs = tx.getNumTxOut();
+        bool colored = false;
 
+        HashString txhash = tx.getThisHash();
 
+        for (int i = 0; i < numInputs; ++i)
+        {
+            OutPoint op = tx.getTxIn(i).getOutPoint();
+            if (outstandingColoredOutpoints_.count(op))
+            {
+                colored = true;
+                break;
+            }
+        }
 
+        if (!colored)
+            for (int i = 0; i < numOutputs; ++i)
+            {
+                OutPoint op(txhash, i);
+                if (colorIssueMap_.count(op))
+                {
+                    colored = true;
+                    break;
+                }
+            }
+            
 
+        if (colored) computeTxColors(tx);
+    }
+}
 
+void ColorMan::scanColoredTransactionsUpTo(uint32_t blockHeight)
+{
+    for (uint32_t i = lastScannedBlock_ + 1; i <= blockHeight; ++i)
+        scanColoredTransactionsAt(i);
+}
 
-
-
-
-
+void ColorMan::computeColorMap()
+{
+    colorIssueMap_.clear();
+    
+    for (size_t i = 0; i < colorDefs_.size(); ++i)
+    {
+        const vector<ColorIssue>& issues = colorDefs_[i].getIssues();
+        
+        for (vector<ColorIssue>::const_iterator iit = issues.begin(); iit != issues.end(); ++iit)
+        {
+            OutPoint op(iit->genesisTxHash, iit->outputIndex);
+            colorIssueMap_.insert(pair<OutPoint, IdxColorID>(op, i));
+        }
+    }
+}

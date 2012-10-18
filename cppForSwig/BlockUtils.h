@@ -50,6 +50,12 @@
 using namespace std;
 
 class BlockDataManager_FileRefs;
+class ColorMan;
+
+typedef BinaryData ColorID;
+typedef int IdxColorID;
+const IdxColorID COLOR_UNKNOWN = -2;
+const IdxColorID COLOR_UNCOLORED = -1;
 
 
 
@@ -126,6 +132,8 @@ public:
 
    void pprintOneLine(void);
 
+   IdxColorID getColor();
+
 private:
    uint64_t  amount_;
    TxRef*    txPtrOfOutput_;
@@ -141,6 +149,8 @@ private:
 
    bool      isTxOutFromSelf_;
    bool      isFromCoinbase_;
+
+   IdxColorID colorCache_;
 };
 
 
@@ -251,7 +261,72 @@ private:
 
 
    
-}; 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+// Color descriptor keeps information about transaction outputs' colors.
+
+struct ColorIssue
+{
+    HashString genesisTxHash;
+    uint32_t outputIndex;
+};
+
+class ColorDefinition
+{
+public:
+   const ColorID& getColorID() const { return colorID_; }
+   const vector<ColorIssue> getIssues() const { return issues_; }
+
+   string getDisplayName() const { return displayName_; }
+
+   ColorDefinition(ColorID colorID,  const string& displayName, vector<ColorIssue> issues)
+   :colorID_(colorID), displayName_(displayName), issues_(issues)
+   {}
+
+private:
+   ColorID colorID_;
+   string displayName_;
+   vector<ColorIssue> issues_;
+};
+
+class ColorMn
+{
+public:
+    typedef vector<IdxColorID> TxColors;
+
+private:
+    BlockDataManager_FileRefs & getBDM(void) { return *bdm_; }
+    BlockDataManager_FileRefs* bdm_;
+
+    vector<ColorDefinition> colorDefs_;
+    map<OutPoint, IdxColorID> colorIssueMap_; 
+
+    int64_t lastScannedBlock_;
+    set<OutPoint> outstandingColoredOutpoints_;
+    map<HashString, TxColors> coloredTransactions_;
+
+    void computeColorMap();
+
+    void scanColoredTransactionsAt(uint32_t blockHeight);
+    void scanColoredTransactionsUpTo(uint32_t blockHeight);
+    
+    bool computeTxColors(Tx& tx);
+
+    IdxColorID getTxOColorRaw(const HashString &txhash, uint32_t idx);
+
+
+public:
+    ColorMan(BlockDataManager_FileRefs*);
+
+    void addColorDefinition(const ColorDefinition& def)
+    {
+        colorDefs_.push_back(def);
+        computeColorMap();
+    }
+
+    IdxColorID getTxOColor(const HashString &txhash, uint32_t idx);
+};
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -730,6 +805,7 @@ private:
    set<OutPoint>                      registeredOutPoints_;
    uint32_t                           allRegAddrScannedUpToBlk_; // one past top
 
+   ColorMan                           colorMan_;
 
 private:
    // Set the constructor to private so that only one can ever be created
@@ -897,6 +973,7 @@ public:
    BinaryData getSenderAddr20(TxIn & txin);
    int64_t    getSentValue(TxIn & txin);
 
+   ColorMan&  getColorMan() { return colorMan_; }
 
    /////////////////////////////////////////////////////////////////////////////
    // A couple random methods to expose internal data structures for testing.
