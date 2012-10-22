@@ -83,7 +83,7 @@ int main(void)
    BlockDataManager_FileRefs::GetInstance().SelectNetwork("Main");
    
 
-   string blkdir("/home/alan/.bitcoin");
+   string blkdir("/home/alex/.bitcoin");
    //string blkdir("/home/alan/.bitcoin/testnet/");
    //string blkdir("C:/Users/VBox/AppData/Roaming/Bitcoin");
    //string blkdir("C:/Users/VBox/AppData/Roaming/Bitcoin/testnet");
@@ -96,8 +96,8 @@ int main(void)
    //printTestHeader("Read-and-Organize-Blockchain");
    //TestReadAndOrganizeChain(blkdir);
 
-   //printTestHeader("Wallet-Relevant-Tx-Scan");
-   //TestScanForWalletTx(blkdir);
+   printTestHeader("Wallet-Relevant-Tx-Scan");
+   TestScanForWalletTx(blkdir);
 
    //printTestHeader("Find-Non-Standard-Tx");
    //TestFindNonStdTx(blkdir);
@@ -105,8 +105,8 @@ int main(void)
    //printTestHeader("Read-and-Organize-Blockchain-With-Wallet");
    //TestReadAndOrganizeChainWithWallet(blkdir);
 
-   printTestHeader("Test-Balance-Construction");
-   TestBalanceConstruction(blkdir);
+   //printTestHeader("Test-Balance-Construction");
+   //TestBalanceConstruction(blkdir);
 
    //printTestHeader("Read-and-Update-Blockchain");
    //TestReadAndUpdateBlkFile(multitest);
@@ -146,9 +146,6 @@ int main(void)
    cout << "enter anything to exit" << endl;
    cin >> pause;
 }
-
-
-
 
 
 
@@ -206,11 +203,25 @@ void TestFindNonStdTx(string blkdir)
 void TestScanForWalletTx(string blkdir)
 {
    BlockDataManager_FileRefs & bdm = BlockDataManager_FileRefs::GetInstance(); 
+
+
    bdm.parseEntireBlockchain(blkdir);
+
+   {
+       BinaryData txhash = BinaryData::CreateFromHex("c997a5e56e104102fa209c6a852dd90660a20b2d9c352423edce25857fcd3704");
+       ColorIssue ci = { txhash, 0 };
+       vector<ColorIssue> ci1(1, ci);
+       ColorDefinition colorDef(txhash,
+                                "hello",
+                                ci1);
+       bdm.getColorMan().addColorDefinition(colorDef);
+   }
+
+
    /////////////////////////////////////////////////////////////////////////////
    BinaryData myAddress;
    BtcWallet wlt;
-   
+
    // Main-network addresses
    myAddress.createFromHex("604875c897a079f4db88e5d71145be2093cae194"); wlt.addAddress(myAddress);
    myAddress.createFromHex("8996182392d6f05e732410de4fc3fa273bac7ee6"); wlt.addAddress(myAddress);
@@ -219,7 +230,7 @@ void TestScanForWalletTx(string blkdir)
    myAddress.createFromHex("11b366edfc0a8b66feebae5c2e25a7b6a5d1cf31"); wlt.addAddress(myAddress);
 
    // This address contains a tx with a non-std TxOut, but the other TxOuts are valid
-   myAddress.createFromHex("6c27c8e67b7376f3ab63553fe37a4481c4f951cf"); wlt.addAddress(myAddress);
+//   myAddress.createFromHex("6c27c8e67b7376f3ab63553fe37a4481c4f951cf"); wlt.addAddress(myAddress);
 
    // More testnet addresses, with only a few transactions
    myAddress.createFromHex("0c6b92101c7025643c346d9c3e23034a8a843e21"); wlt.addAddress(myAddress);
@@ -228,8 +239,8 @@ void TestScanForWalletTx(string blkdir)
    myAddress.createFromHex("0e0aec36fe2545fb31a41164fb6954adcd96b342"); wlt.addAddress(myAddress);
 
    TIMER_WRAP(bdm.scanBlockchainForTx(wlt));
-   TIMER_WRAP(bdm.scanBlockchainForTx(wlt));
-   TIMER_WRAP(bdm.scanBlockchainForTx(wlt));
+//   TIMER_WRAP(bdm.scanBlockchainForTx(wlt));
+//   TIMER_WRAP(bdm.scanBlockchainForTx(wlt));
    
    cout << "Checking balance of all addresses: " << wlt.getNumAddr() << " addrs" << endl;
    for(uint32_t i=0; i<wlt.getNumAddr(); i++)
@@ -239,12 +250,20 @@ void TestScanForWalletTx(string blkdir)
                          << wlt.getAddrByHash160(addr20).getFullBalance() << endl;
       vector<LedgerEntry> const & ledger = wlt.getAddrByIndex(i).getTxLedger();
       for(uint32_t j=0; j<ledger.size(); j++)
-      {  
-         cout << "    Tx: " 
-           << ledger[j].getAddrStr20().getSliceCopy(0,4).toHexStr() << "  "
-           << ledger[j].getValue()/(float)(CONVERTBTC) << " (" 
-           << ledger[j].getBlockNum()
-           << ")  TxHash: " << ledger[j].getTxHash().getSliceCopy(0,4).toHexStr() << endl;
+      { 
+          int64_t val = ledger[j].getValue();
+          IdxColorID color = COLOR_UNKNOWN;
+          if (val > 0) {
+              BinaryData txhash = ledger[j].getTxHash();
+              color = bdm.getColorMan().getTxOColor(txhash, ledger[j].getIndex());
+          }
+
+          cout << "    Tx: " 
+               << ledger[j].getAddrStr20().getSliceCopy(0,4).toHexStr() << "  "
+               << ledger[j].getValue()/(float)(CONVERTBTC) << " (" 
+               << ledger[j].getBlockNum()
+               << ") (" << color
+               << ")  TxHash: " << ledger[j].getTxHash().toHexStr() << endl;
       }
 
    }
