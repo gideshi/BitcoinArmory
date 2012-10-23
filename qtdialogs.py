@@ -4965,7 +4965,7 @@ class DlgSendBitcoins(ArmoryDialog):
       
 
       # Get unspent outs for this wallet:
-      utxoList = self.wlt.getTxOutList('Spendable')
+      utxoList = self.wlt.getTxOutListX(-2, 'Spendable')
       utxoSelect = PySelectCoins(utxoList, totalSend, fee)
 
 

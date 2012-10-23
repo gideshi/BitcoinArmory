@@ -4369,7 +4369,7 @@ def getUnspentTxOutsForAddrList(addr160List, utxoType='Sweep', startBlk=-1):
       if utxoType.lower() in ('sweep','unspent','full','all','ultimate'):
          return cppWlt.getFullTxOutList(currBlk)
       elif utxoType.lower() in ('spend','spendable','confirmed'):
-         return cppWlt.getSpendableTxOutList(currBlk)
+         return cppWlt.getSpendableTxOutListX(-2, currBlk)
       else:
          raise TypeError, 'Unknown utxoType!'
 
@@ -6044,7 +6044,7 @@ class PyBtcWallet(object):
          elif balType.lower() in ('unconfirmed','unconf'):
             return self.cppWallet.getUnconfirmedBalance(currBlk)
          elif balType.lower() in ('total','ultimate','unspent','full'):
-            return self.cppWallet.getFullBalance()
+            return self.cppWallet.getFullBalanceX(-2)
          else:
             raise TypeError, 'Unknown balance type! "' + balType + '"'
 
@@ -6113,13 +6113,13 @@ class PyBtcWallet(object):
 
 
    #############################################################################
-   def getTxOutList(self, txType='Spendable'):
+   def getTxOutListX(self, color, txType='Spendable'):
       """ Returns UnspentTxOut/C++ objects """
       if TheBDM.isInitialized() and not self.doBlockchainSync==BLOCKCHAIN_DONOTUSE:
          currBlk = TheBDM.getTopBlockHeader().getBlockHeight()
          self.syncWithBlockchain()
          if txType.lower() in ('spend', 'spendable'):
-            return self.cppWallet.getSpendableTxOutList(currBlk);
+            return self.cppWallet.getSpendableTxOutListX(color, currBlk);
          elif txType.lower() in ('full', 'all', 'unspent', 'ultimate'):
             return self.cppWallet.getFullTxOutList(currBlk);
          else:

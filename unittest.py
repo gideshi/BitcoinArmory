@@ -1540,7 +1540,7 @@ if Test_TxDistProposals:
 
    # Get all the unspent TxOuts for this addr
    wlt.syncWithBlockchain()
-   utxoList = wlt.getTxOutList('Spendable')
+   utxoList = wlt.getTxOutListX(-2, 'Spendable')
    pprintUnspentTxOutList(utxoList, 'Unspent TxOuts for your wallet: ')
 
    nBTC = 0.05*ONE_BTC
