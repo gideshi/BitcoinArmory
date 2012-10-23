@@ -133,6 +133,7 @@ public:
    void pprintOneLine(void);
 
    IdxColorID getColor();
+   bool matchesColor(IdxColorID color);
 
 private:
    uint64_t  amount_;
@@ -586,11 +587,11 @@ public:
    // only a convenience, if you want to be able to calculate numConf from
    // the Utxos in the list.  If you don't care (i.e. you only want to 
    // know what TxOuts are available to spend, you can pass in 0 for currBlk
-   uint64_t getFullBalance(void);
+   uint64_t getFullBalanceX(IdxColorID color);
    uint64_t getSpendableBalance(uint32_t currBlk=0);
    uint64_t getUnconfirmedBalance(uint32_t currBlk);
    vector<UnspentTxOut> getFullTxOutList(uint32_t currBlk=0);
-   vector<UnspentTxOut> getSpendableTxOutList(uint32_t currBlk=0);
+   vector<UnspentTxOut> getSpendableTxOutListX(IdxColorID color, uint32_t currBlk=0);
    void clearZeroConfPool(void);
 
    
