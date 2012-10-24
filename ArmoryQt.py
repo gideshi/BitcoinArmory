@@ -1102,6 +1102,7 @@ class ArmoryMainWindow(QMainWindow):
       for fpath in wltPaths:
          try:
             wltLoad = PyBtcWallet().readWalletFile(fpath)
+            wltLoad = PyBtcWalletCW(wltLoad)
             wltID = wltLoad.uniqueIDB58
             if fpath in wltExclude or wltID in wltExclude:
                continue

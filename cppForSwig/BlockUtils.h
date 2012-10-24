@@ -271,6 +271,8 @@ struct ColorIssue
 {
     HashString genesisTxHash;
     uint32_t outputIndex;
+    ColorIssue() {}
+    void init(BinaryData genesisTxHash_, uint32_t outputIndex_);
 };
 
 class ColorDefinition

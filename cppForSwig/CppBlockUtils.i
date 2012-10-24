@@ -48,6 +48,7 @@ namespace std
    %template(vector_BtcWallet) std::vector<BtcWallet*>;
    %template(vector_AddressBookEntry) std::vector<AddressBookEntry>;
    %template(vector_RegisteredTx) std::vector<RegisteredTx>;
+   %template(vector_ColorIssue) std::vector<ColorIssue>;
 }
 /******************************************************************************/
 /* Convert Python(str) to C++(BinaryData) */

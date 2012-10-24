@@ -3829,3 +3829,9 @@ void ColorMan::computeColorMap()
         }
     }
 }
+
+void ColorIssue::init(BinaryData genesisTxHash_, uint32_t outputIndex_)
+{
+    genesisTxHash = genesisTxHash_;
+    outputIndex = outputIndex_;
+}

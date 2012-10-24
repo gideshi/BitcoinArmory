@@ -1143,6 +1143,16 @@ def BDM_LoadBlockchainFile(blkdir=None, wltList=None):
 
    TheBDM.SetBtcNetworkParams( GENESIS_BLOCK_HASH, GENESIS_TX_HASH, MAGIC_BYTES)
 
+   # create color definitions (test)
+   colorDude = TheBDM.getColorMan()
+   txhash = hex_to_binary("c26166c7a387b85eca0adbb86811a9d122a5d96605627ad4125f17f6ddcbf89b", endIn=LITTLEENDIAN, endOut=BIGENDIAN)
+   ci = Cpp.ColorIssue()
+   ci.init(txhash, 0)
+   vci = Cpp.vector_ColorIssue()
+   vci.push_back(ci)
+   cd = Cpp.ColorDefinition(txhash, "hello", vci)
+   colorDude.addColorDefinition(cd)
+
    # Register wallets so that they can be included in the initial scan
    if wltList:
       for wlt in wltList:
@@ -5771,6 +5781,19 @@ WLT_DATATYPE_DELETED     = 4
 DEFAULT_COMPUTE_TIME_TARGET = 0.25
 DEFAULT_MAXMEM_LIMIT        = 32*1024*1024
 
+class PyBtcWalletCW(object):
+   def __init__(self, ww):
+      self.ww = ww
+      self.color = -2
+
+   def __getattr__(self, attr):
+      return self.ww.__getattribute__(attr)
+
+   def getBalance(self, balType="Spendable"):   
+      return self.ww.getBalanceX(self.color, balType)
+
+   def getTxOutList(self, txType='Spendable'):
+      return self.ww.getTxOutListX(self.color, txType)
 
 
 ################################################################################
@@ -6034,7 +6057,7 @@ class PyBtcWallet(object):
          
 
    #############################################################################
-   def getBalance(self, balType="Spendable"):
+   def getBalanceX(self, color, balType="Spendable"):
       if not TheBDM.isInitialized():
          return -1
       else:
@@ -6044,7 +6067,7 @@ class PyBtcWallet(object):
          elif balType.lower() in ('unconfirmed','unconf'):
             return self.cppWallet.getUnconfirmedBalance(currBlk)
          elif balType.lower() in ('total','ultimate','unspent','full'):
-            return self.cppWallet.getFullBalanceX(-2)
+            return self.cppWallet.getFullBalanceX(color)
          else:
             raise TypeError, 'Unknown balance type! "' + balType + '"'
 
