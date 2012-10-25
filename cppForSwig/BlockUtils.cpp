@@ -750,8 +750,8 @@ void BtcWallet::pprintAlot(uint32_t topBlk, bool withAddr)
 
    cout << "Wallet PPRINT:" << endl;
    cout << "Tot: " << getFullBalanceX(COLOR_UNKNOWN) << endl;
-   cout << "Spd: " << getSpendableBalance(topBlk) << endl;
-   cout << "Ucn: " << getUnconfirmedBalance(topBlk) << endl;
+   cout << "Spd: " << getSpendableBalanceX(topBlk,COLOR_UNKNOWN) << endl;
+   cout << "Ucn: " << getUnconfirmedBalanceX(topBlk,COLOR_UNKNOWN) << endl;
 
    cout << "Ledger: " << endl;
    for(uint32_t i=0; i<numLedg; i++)
@@ -1395,6 +1395,21 @@ uint64_t BtcWallet::getSpendableBalance(uint32_t currBlk)
    }
    return balance;
 }
+////////////////////////////////////////////////////////////////////////////////
+uint64_t BtcWallet::getSpendableBalanceX(uint32_t currBlk, IdxColorID color)
+{
+   uint64_t balance = 0;
+   map<OutPoint, TxIOPair>::iterator iter;
+   for(iter  = txioMap_.begin();
+       iter != txioMap_.end();
+       iter++)
+   {
+     if(iter->second.isSpendable(currBlk) && iter->second.matchesColor(color))
+         balance += iter->second.getValue();      
+   }
+   return balance;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 uint64_t BtcWallet::getUnconfirmedBalance(uint32_t currBlk)
@@ -1410,6 +1425,21 @@ uint64_t BtcWallet::getUnconfirmedBalance(uint32_t currBlk)
    }
    return balance;
 }
+////////////////////////////////////////////////////////////////////////////////
+uint64_t BtcWallet::getUnconfirmedBalanceX(uint32_t currBlk,IdxColorID color)
+{
+   uint64_t balance = 0;
+   map<OutPoint, TxIOPair>::iterator iter;
+   for(iter  = txioMap_.begin();
+       iter != txioMap_.end();
+       iter++)
+   {
+     if(iter->second.isMineButUnconfirmed(currBlk) && iter->second.matchesColor(color))
+         balance += iter->second.getValue();      
+   }
+   return balance;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 uint64_t BtcWallet::getFullBalanceX(IdxColorID color)
@@ -1464,6 +1494,25 @@ vector<UnspentTxOut> BtcWallet::getFullTxOutList(uint32_t blkNum)
    }
    return utxoList;
 }
+////////////////////////////////////////////////////////////////////////////////
+vector<UnspentTxOut> BtcWallet::getFullTxOutListX(uint32_t blkNum,IdxColorID color)
+{
+   vector<UnspentTxOut> utxoList(0);
+   map<OutPoint, TxIOPair>::iterator iter;
+   for(iter  = txioMap_.begin();
+       iter != txioMap_.end();
+       iter++)
+   {
+      TxIOPair & txio = iter->second;
+      if(txio.isUnspent() && txio.matchesColor(color)
+      {
+         TxOut txout = txio.getTxOut();
+         utxoList.push_back(UnspentTxOut(txout, blkNum) );
+      }
+   }
+   return utxoList;
+}
+
 
 
 
