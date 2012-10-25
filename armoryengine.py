@@ -6063,9 +6063,9 @@ class PyBtcWallet(object):
       else:
          currBlk = TheBDM.getTopBlockHeader().getBlockHeight()
          if balType.lower() in ('spendable','spend'):
-            return self.cppWallet.getSpendableBalance(currBlk)
+            return self.cppWallet.getSpendableBalanceX(currBlk,color)
          elif balType.lower() in ('unconfirmed','unconf'):
-            return self.cppWallet.getUnconfirmedBalance(currBlk)
+            return self.cppWallet.getUnconfirmedBalanceX(currBlk,color)
          elif balType.lower() in ('total','ultimate','unspent','full'):
             return self.cppWallet.getFullBalanceX(color)
          else:
@@ -6144,7 +6144,7 @@ class PyBtcWallet(object):
          if txType.lower() in ('spend', 'spendable'):
             return self.cppWallet.getSpendableTxOutListX(color, currBlk);
          elif txType.lower() in ('full', 'all', 'unspent', 'ultimate'):
-            return self.cppWallet.getFullTxOutList(currBlk);
+            return self.cppWallet.getFullTxOutList(currBlk,color);
          else:
             raise TypeError, 'Unknown balance type! ' + txType
       else:
