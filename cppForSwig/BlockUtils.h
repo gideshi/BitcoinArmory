@@ -476,6 +476,7 @@ public:
    // the Utxos in the list.  If you don't care (i.e. you only want to 
    // know what TxOuts are available to spend, you can pass in 0 for currBlk
    uint64_t getFullBalance(void);
+   uint64_t getFullBalanceX(IdxColorID color);
    uint64_t getSpendableBalance(uint32_t currBlk=0);
    uint64_t getUnconfirmedBalance(uint32_t currBlk);
    vector<UnspentTxOut> getFullTxOutList(uint32_t currBlk=0);
@@ -591,8 +592,11 @@ public:
    // know what TxOuts are available to spend, you can pass in 0 for currBlk
    uint64_t getFullBalanceX(IdxColorID color);
    uint64_t getSpendableBalance(uint32_t currBlk=0);
+   uint64_t getSpendableBalanceX(uint32_t currBlk=0,IdxColorID color);
    uint64_t getUnconfirmedBalance(uint32_t currBlk);
+   uint64_t getUnconfirmedBalanceX(uint32_t currBlk,IdxColorID color);
    vector<UnspentTxOut> getFullTxOutList(uint32_t currBlk=0);
+   vector<UnspentTxOut> getFullTxOutListX(uint32_t currBlk=0,IdxColorID color);
    vector<UnspentTxOut> getSpendableTxOutListX(IdxColorID color, uint32_t currBlk=0);
    void clearZeroConfPool(void);
 
