@@ -5795,6 +5795,11 @@ class PyBtcWalletCW(object):
    def getTxOutList(self, txType='Spendable'):
       return self.ww.getTxOutListX(self.color, txType)
 
+   def getAddrBalance(self, addr160, balType="Spendable", currBlk=UINT32_MAX):
+      return self.ww.getAddrBalance(self.color,ballType,currBlk)
+
+   def getAddrTxOutList(self, addr160, txType='Spendable'):
+      return self.ww.getAddrTxOutListX(self.color, addr160, txType='Spendable')
 
 ################################################################################
 ################################################################################
@@ -6063,9 +6068,9 @@ class PyBtcWallet(object):
       else:
          currBlk = TheBDM.getTopBlockHeader().getBlockHeight()
          if balType.lower() in ('spendable','spend'):
-            return self.cppWallet.getSpendableBalanceX(currBlk,color)
+            return self.cppWallet.getSpendableBalanceX(color,currBlk)
          elif balType.lower() in ('unconfirmed','unconf'):
-            return self.cppWallet.getUnconfirmedBalanceX(currBlk,color)
+            return self.cppWallet.getUnconfirmedBalanceX(color,currBlk)
          elif balType.lower() in ('total','ultimate','unspent','full'):
             return self.cppWallet.getFullBalanceX(color)
          else:
@@ -6073,17 +6078,17 @@ class PyBtcWallet(object):
 
 
    #############################################################################
-   def getAddrBalance(self, addr160, balType="Spendable", currBlk=UINT32_MAX):
+   def getAddrBalanceX(self,color, addr160, balType="Spendable", currBlk=UINT32_MAX):
       if not TheBDM.isInitialized() or not self.hasAddr(addr160):
          return -1
       else:
          addr = self.cppWallet.getAddrByHash160(addr160)
          if balType.lower() in ('spendable','spend'):
-            return addr.getSpendableBalance(currBlk)
+            return addr.getSpendableBalanceX(color,currBlk)
          elif balType.lower() in ('unconfirmed','unconf'):
-            return addr.getUnconfirmedBalance(currBlk)
+            return addr.getUnconfirmedBalanceX(color,currBlk)
          elif balType.lower() in ('ultimate','unspent','full'):
-            return addr.getFullBalance()
+            return addr.getFullBalanceX(color)
          else:
             raise TypeError, 'Unknown balance type!'
 
@@ -6144,7 +6149,7 @@ class PyBtcWallet(object):
          if txType.lower() in ('spend', 'spendable'):
             return self.cppWallet.getSpendableTxOutListX(color, currBlk);
          elif txType.lower() in ('full', 'all', 'unspent', 'ultimate'):
-            return self.cppWallet.getFullTxOutList(currBlk,color);
+            return self.cppWallet.getFullTxOutList(color,currBlk);
          else:
             raise TypeError, 'Unknown balance type! ' + txType
       else:
@@ -6152,16 +6157,16 @@ class PyBtcWallet(object):
          return []
 
    #############################################################################
-   def getAddrTxOutList(self, addr160, txType='Spendable'):
+   def getAddrTxOutListX(self,color, addr160, txType='Spendable'):
       """ Returns UnspentTxOut/C++ objects """
       if TheBDM.isInitialized() and self.hasAddr(addr160) and \
                         not self.doBlockchainSync==BLOCKCHAIN_DONOTUSE:
          currBlk = TheBDM.getTopBlockHeader().getBlockHeight()
          self.syncWithBlockchain()
          if txType.lower() in ('spend', 'spendable'):
-            return self.cppWallet.getAddrByHash160(addr160).getSpendableTxOutList(currBlk);
+            return self.cppWallet.getAddrByHash160(addr160).getSpendableTxOutList(color,currBlk);
          elif txType.lower() in ('full', 'all', 'unspent', 'ultimate'):
-            return self.cppWallet.getAddrByHash160(addr160).getFullTxOutList(currBlk);
+            return self.cppWallet.getAddrByHash160(addr160).getFullTxOutList(color,currBlk);
          else:
             raise TypeError, 'Unknown TxOutList type! ' + txType
       else:

@@ -431,6 +431,23 @@ uint64_t BtcAddress::getSpendableBalance(uint32_t currBlk)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+uint64_t BtcAddress::getSpendableBalanceX(IdxColorID color,uint32_t currBlk)
+{
+   uint64_t balance = 0;
+   for(uint32_t i=0; i<relevantTxIOPtrs_.size(); i++)
+   {
+     if(relevantTxIOPtrs_[i]->isSpendable(currBlk) && relevantTxIOPtrs_[i]->matchesColor(color))
+         balance += relevantTxIOPtrs_[i]->getValue();
+   }
+   for(uint32_t i=0; i<relevantTxIOPtrsZC_.size(); i++)
+   {
+      if(relevantTxIOPtrsZC_[i]->isSpendable(currBlk) && relevantTxIOPtrs_[i]->matchesColor(color))
+         balance += relevantTxIOPtrsZC_[i]->getValue();
+   }
+   return balance;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 uint64_t BtcAddress::getUnconfirmedBalance(uint32_t currBlk)
 {
    uint64_t balance = 0;
@@ -442,6 +459,23 @@ uint64_t BtcAddress::getUnconfirmedBalance(uint32_t currBlk)
    for(uint32_t i=0; i<relevantTxIOPtrsZC_.size(); i++)
    {
       if(relevantTxIOPtrsZC_[i]->isMineButUnconfirmed(currBlk))
+         balance += relevantTxIOPtrsZC_[i]->getValue();
+   }
+   return balance;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint64_t BtcAddress::getUnconfirmedBalanceX(IdxColorID color,uint32_t currBlk)
+{
+   uint64_t balance = 0;
+   for(uint32_t i=0; i<relevantTxIOPtrs_.size(); i++)
+   {
+     if(relevantTxIOPtrs_[i]->isMineButUnconfirmed(currBlk) && relevantTxIOPtrs_[i]->matchesColor(color))
+         balance += relevantTxIOPtrs_[i]->getValue();
+   }
+   for(uint32_t i=0; i<relevantTxIOPtrsZC_.size(); i++)
+   {
+     if(relevantTxIOPtrsZC_[i]->isMineButUnconfirmed(currBlk) && relevantTxIOPtrs_[i]->matchesColor(color))
          balance += relevantTxIOPtrsZC_[i]->getValue();
    }
    return balance;
@@ -467,6 +501,25 @@ uint64_t BtcAddress::getFullBalance(void)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+uint64_t BtcAddress::getFullBalanceX(IdxColorID color)
+{
+   uint64_t balance = 0;
+   for(uint32_t i=0; i<relevantTxIOPtrs_.size(); i++)
+   {
+      TxIOPair & txio = *relevantTxIOPtrs_[i];
+      if(txio.isUnspent() && txio.matchesColor(color))
+         balance += txio.getValue();
+   }
+   for(uint32_t i=0; i<relevantTxIOPtrsZC_.size(); i++)
+   {
+      TxIOPair & txio = *relevantTxIOPtrsZC_[i];
+      if(txio.isUnspent() && txio.matchesColor(color))
+         balance += txio.getValue();
+   }
+   return balance;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 vector<UnspentTxOut> BtcAddress::getSpendableTxOutList(uint32_t blkNum)
 {
    vector<UnspentTxOut> utxoList(0);
@@ -483,6 +536,56 @@ vector<UnspentTxOut> BtcAddress::getSpendableTxOutList(uint32_t blkNum)
    {
       TxIOPair & txio = *relevantTxIOPtrsZC_[i];
       if(txio.isSpendable(blkNum))
+      {
+         TxOut txout = txio.getTxOut();
+         utxoList.push_back( UnspentTxOut(txout, blkNum) );
+      }
+   }
+   return utxoList;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+vector<UnspentTxOut> BtcAddress::getSpendableTxOutListX(IdxColorID color,uint32_t blkNum)
+{
+   vector<UnspentTxOut> utxoList(0);
+   for(uint32_t i=0; i<relevantTxIOPtrs_.size(); i++)
+   {
+      TxIOPair & txio = *relevantTxIOPtrs_[i];
+      if(txio.isSpendable(blkNum) && txio.matchesColor(color))
+      {
+         TxOut txout = txio.getTxOut();
+         utxoList.push_back( UnspentTxOut(txout, blkNum) );
+      }
+   }
+   for(uint32_t i=0; i<relevantTxIOPtrsZC_.size(); i++)
+   {
+      TxIOPair & txio = *relevantTxIOPtrsZC_[i];
+      if(txio.isSpendable(blkNum) && txio.matchesColor(color))
+      {
+         TxOut txout = txio.getTxOut();
+         utxoList.push_back( UnspentTxOut(txout, blkNum) );
+      }
+   }
+   return utxoList;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+vector<UnspentTxOut> BtcAddress::getFullTxOutListX(IdxColorID color,uint32_t blkNum)
+{
+   vector<UnspentTxOut> utxoList(0);
+   for(uint32_t i=0; i<relevantTxIOPtrs_.size(); i++)
+   {
+      TxIOPair & txio = *relevantTxIOPtrs_[i];
+      if(txio.isUnspent() && txio.matchesColor(color))
+      {
+         TxOut txout = txio.getTxOut();
+         utxoList.push_back( UnspentTxOut(txout, blkNum) );
+      }
+   }
+   for(uint32_t i=0; i<relevantTxIOPtrsZC_.size(); i++)
+   {
+      TxIOPair & txio = *relevantTxIOPtrsZC_[i];
+      if(txio.isUnspent() && txio.matchesColor(color))
       {
          TxOut txout = txio.getTxOut();
          utxoList.push_back( UnspentTxOut(txout, blkNum) );
@@ -750,8 +853,8 @@ void BtcWallet::pprintAlot(uint32_t topBlk, bool withAddr)
 
    cout << "Wallet PPRINT:" << endl;
    cout << "Tot: " << getFullBalanceX(COLOR_UNKNOWN) << endl;
-   cout << "Spd: " << getSpendableBalanceX(topBlk,COLOR_UNKNOWN) << endl;
-   cout << "Ucn: " << getUnconfirmedBalanceX(topBlk,COLOR_UNKNOWN) << endl;
+   cout << "Spd: " << getSpendableBalanceX(COLOR_UNKNOWN,topBlk) << endl;
+   cout << "Ucn: " << getUnconfirmedBalanceX(COLOR_UNKNOWN,topBlk) << endl;
 
    cout << "Ledger: " << endl;
    for(uint32_t i=0; i<numLedg; i++)
@@ -777,9 +880,9 @@ void BtcWallet::pprintAlot(uint32_t topBlk, bool withAddr)
          BtcAddress & addr = getAddrByIndex(i);
          HashString addr160 = addr.getAddrStr20();
          cout << "\nAddress: " << addr160.toHexStr().c_str() << endl;
-         cout << "   Tot: " << addr.getFullBalance() << endl;
-         cout << "   Spd: " << addr.getSpendableBalance(topBlk) << endl;
-         cout << "   Ucn: " << addr.getUnconfirmedBalance(topBlk) << endl;
+         cout << "   Tot: " << addr.getFullBalanceX(COLOR_UNKNOWN) << endl;
+         cout << "   Spd: " << addr.getSpendableBalanceX(COLOR_UNKNOWN,topBlk) << endl;
+         cout << "   Ucn: " << addr.getUnconfirmedBalanceX(COLOR_UNKNOWN,topBlk) << endl;
                   
          cout << "   Ledger: " << endl;
          for(uint32_t i=0; i<addr.ledger_.size(); i++)
@@ -1396,7 +1499,7 @@ uint64_t BtcWallet::getSpendableBalance(uint32_t currBlk)
    return balance;
 }
 ////////////////////////////////////////////////////////////////////////////////
-uint64_t BtcWallet::getSpendableBalanceX(uint32_t currBlk, IdxColorID color)
+uint64_t BtcWallet::getSpendableBalanceX(IdxColorID color ,uint32_t currBlk)
 {
    uint64_t balance = 0;
    map<OutPoint, TxIOPair>::iterator iter;
@@ -1426,7 +1529,7 @@ uint64_t BtcWallet::getUnconfirmedBalance(uint32_t currBlk)
    return balance;
 }
 ////////////////////////////////////////////////////////////////////////////////
-uint64_t BtcWallet::getUnconfirmedBalanceX(uint32_t currBlk,IdxColorID color)
+uint64_t BtcWallet::getUnconfirmedBalanceX(IdxColorID color,uint32_t currBlk)
 {
    uint64_t balance = 0;
    map<OutPoint, TxIOPair>::iterator iter;
@@ -1495,7 +1598,7 @@ vector<UnspentTxOut> BtcWallet::getFullTxOutList(uint32_t blkNum)
    return utxoList;
 }
 ////////////////////////////////////////////////////////////////////////////////
-vector<UnspentTxOut> BtcWallet::getFullTxOutListX(uint32_t blkNum,IdxColorID color)
+vector<UnspentTxOut> BtcWallet::getFullTxOutListX(IdxColorID color,uint32_t blkNum)
 {
    vector<UnspentTxOut> utxoList(0);
    map<OutPoint, TxIOPair>::iterator iter;
@@ -1504,7 +1607,7 @@ vector<UnspentTxOut> BtcWallet::getFullTxOutListX(uint32_t blkNum,IdxColorID col
        iter++)
    {
       TxIOPair & txio = iter->second;
-      if(txio.isUnspent() && txio.matchesColor(color)
+      if(txio.isUnspent() && txio.matchesColor(color))
       {
          TxOut txout = txio.getTxOut();
          utxoList.push_back(UnspentTxOut(txout, blkNum) );
