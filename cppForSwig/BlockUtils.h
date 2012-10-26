@@ -203,13 +203,15 @@ public:
       isValid_(false),
       isCoinbase_(false),
       isSentToSelf_(false),
-      isChangeBack_(false) {}
+      isChangeBack_(false),
+      color_(COLOR_UNKNOWN){}
 
    LedgerEntry(BinaryData const & addr20,
                int64_t val, 
                uint32_t blkNum, 
                BinaryData const & txhash, 
                uint32_t idx,
+               IdxColorID color,
                uint64_t txtime=0,
                bool isCoinbase=false,
                bool isToSelf=false,
@@ -223,7 +225,8 @@ public:
       isValid_(true),
       isCoinbase_(isCoinbase),
       isSentToSelf_(isToSelf),
-      isChangeBack_(isChange) {}
+      isChangeBack_(isChange),
+      color_(color) {}
 
    BinaryData const &  getAddrStr20(void) const { return addr20_;        }
    int64_t             getValue(void) const     { return value_;         }
@@ -246,6 +249,9 @@ public:
    void pprint(void);
    void pprintOneLine(void);
 
+   IdxColorID getColor();
+   bool matchesColor(IdxColorID color);
+
 private:
    
 
@@ -260,8 +266,7 @@ private:
    bool             isSentToSelf_;
    bool             isChangeBack_;;
 
-
-   
+   IdxColorID       color_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

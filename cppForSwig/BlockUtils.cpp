@@ -1135,6 +1135,7 @@ void BtcWallet::scanTx(Tx & tx,
                                     blknum, 
                                     tx.getThisHash(), 
                                     iin,
+                                    txio.getColor(),
                                     txtime,
                                     isCoinbaseTx,
                                     false,  // SentToSelf is meaningless for addr ledger
@@ -1255,6 +1256,7 @@ void BtcWallet::scanTx(Tx & tx,
                                      blknum, 
                                      tx.getThisHash(), 
                                      iout,
+                                     txioIter->second.getColor(),
                                      txtime,
                                      isCoinbaseTx, // input was coinbase/generation
                                      false,   // sentToSelf meaningless for addr ledger
@@ -1295,6 +1297,7 @@ void BtcWallet::scanTx(Tx & tx,
                       blknum, 
                       tx.getThisHash(), 
                       txIndex,
+                      COLOR_UNKNOWN, // TODO: separate ledger entry per color?
                       txtime,
                       isCoinbaseTx,
                       isSentToSelf,
