@@ -378,6 +378,15 @@ void LedgerEntry::pprint(void)
    cout << endl;
 }
 
+bool LedgerEntry::matchesColor(IdxColorID color)
+{
+    if (color == COLOR_UNKNOWN)
+        // unknown color is like a wildcard, everything matches it
+        return true;
+    return (getColor() == color);
+}
+
+
 //////////////////////////////////////////////////////////////////////////////
 void LedgerEntry::pprintOneLine(void)
 {
@@ -1387,6 +1396,7 @@ LedgerEntry BtcWallet::calcLedgerEntryForTx(Tx & tx)
                       0, 
                       tx.getThisHash(), 
                       0,
+		      COLOR_UNKNOWN,
                       0,
                       isCoinbaseTx,
                       isSentToSelf,

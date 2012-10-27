@@ -249,7 +249,7 @@ public:
    void pprint(void);
    void pprintOneLine(void);
 
-   IdxColorID getColor();
+   IdxColorID getColor() { return color_; }
    bool matchesColor(IdxColorID color);
 
 private:
