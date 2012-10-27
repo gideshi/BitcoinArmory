@@ -57,7 +57,7 @@ import ast
 import traceback
 from struct import pack, unpack
 from datetime import datetime
-
+import ConfigParser
 
 from sys import argv
 
@@ -1125,7 +1125,41 @@ def binaryBits_to_difficulty(b):
 def difficulty_to_binaryBits(i):
    pass
 
+def LoadColorDefinitions():
+   colorDude = TheBDM.getColorMan()
+   cdd = os.path.join(ARMORY_HOME_DIR, "colordefs")
 
+   def LoadColorDefs(path):
+      cf = ConfigParser.RawConfigParser()
+      cf.read(os.path.join(cdd, path))
+      print "Reading " + path
+      for colorid in cf.sections():
+         colorname = cf.get(colorid, "name")
+         style = cf.get(colorid, "style")
+         print "Color definition:" + colorname + "(" + style + ")"
+         if (style == "genesis"):
+            nissues = cf.getint(colorid, "number_of_issues")
+            vci = Cpp.vector_ColorIssue()
+            
+            for i in xrange(1, nissues + 1):
+               txhash_s = cf.get(colorid, "i_txhash_" + str(i))
+               outidx = cf.getint(colorid, "i_outidx_" + str(i))
+               print txhash_s + ":" + str(outidx)
+               txhash = hex_to_binary(txhash_s,  endIn=LITTLEENDIAN, endOut=BIGENDIAN)
+               ci = Cpp.ColorIssue()
+               ci.init(txhash, outidx)
+               vci.push_back(ci)
+
+            cd = Cpp.ColorDefinition(colorid, colorname, vci)
+            colorDude.addColorDefinition(cd)
+         else:
+            raise Exception("Style not implemented", style)
+
+   if os.path.exists(cdd):
+      for cdfile in os.listdir(cdd):
+         if cdfile.endswith(".colordef"):
+            LoadColorDefs(cdfile)
+ 
 
 ################################################################################
 def BDM_LoadBlockchainFile(blkdir=None, wltList=None):
@@ -1143,15 +1177,7 @@ def BDM_LoadBlockchainFile(blkdir=None, wltList=None):
 
    TheBDM.SetBtcNetworkParams( GENESIS_BLOCK_HASH, GENESIS_TX_HASH, MAGIC_BYTES)
 
-   # create color definitions (test)
-   colorDude = TheBDM.getColorMan()
-   txhash = hex_to_binary("c26166c7a387b85eca0adbb86811a9d122a5d96605627ad4125f17f6ddcbf89b", endIn=LITTLEENDIAN, endOut=BIGENDIAN)
-   ci = Cpp.ColorIssue()
-   ci.init(txhash, 0)
-   vci = Cpp.vector_ColorIssue()
-   vci.push_back(ci)
-   cd = Cpp.ColorDefinition(txhash, "hello", vci)
-   colorDude.addColorDefinition(cd)
+   LoadColorDefinitions()
 
    # Register wallets so that they can be included in the initial scan
    if wltList:
