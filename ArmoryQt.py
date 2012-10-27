@@ -310,6 +310,12 @@ class ArmoryMainWindow(QMainWindow):
       lblInfo.setFont(GETFONT('var',10))
       lblInfo.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
 
+      self.comboColorSelect = QComboBox()
+      self.populateColorCombo()
+      def onColorChange(x):
+         self.onColorChange()
+      self.connect(self.comboColorSelect, SIGNAL('activated(int)'), onColorChange)
+
       logoBtnFrame = []
       logoBtnFrame.append(self.lblLogoIcon)
       logoBtnFrame.append(btnSendBtc)
@@ -317,6 +323,7 @@ class ArmoryMainWindow(QMainWindow):
       logoBtnFrame.append(btnWltProps)
       if self.usermode in (USERMODE.Advanced, USERMODE.Expert):
          logoBtnFrame.append(btnOfflineTx)
+      logoBtnFrame.append(self.comboColorSelect)
       logoBtnFrame.append(lblInfo)
       logoBtnFrame.append('Stretch')
 
@@ -1529,6 +1536,19 @@ class ArmoryMainWindow(QMainWindow):
       self.populateLedgerComboBox()
       self.createCombinedLedger()
 
+   #############################################################################
+   def populateColorCombo(self):
+      self.comboColorSelect.clear()
+      self.comboColorSelect.addItem('All colors')
+      self.comboColorSelect.addItem('Uncolored')
+      self.comboColorSelect.addItem('My color 0')
+
+   def onColorChange(self):
+      idx = self.comboColorSelect.currentIndex()
+      color = idx - 2
+      for wltID in self.walletIDList:
+         self.walletMap[wltID].color = color
+      self.walletListChanged()
 
    #############################################################################
    def populateLedgerComboBox(self):
