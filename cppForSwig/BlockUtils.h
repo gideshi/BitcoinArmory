@@ -285,16 +285,23 @@ class ColorDefinition
 public:
    const ColorID& getColorID() const { return colorID_; }
    const vector<ColorIssue> getIssues() const { return issues_; }
+   const BinaryData& getIssuingAddr160() const { return issuingAddr160_; }
+   bool isGenesisStyle() const { return genesisStyle_; }
 
    string getDisplayName() const { return displayName_; }
 
-   ColorDefinition(ColorID colorID,  const string& displayName, vector<ColorIssue> issues)
-   :colorID_(colorID), displayName_(displayName), issues_(issues)
+   ColorDefinition(ColorID colorID,  const string& displayName)
+       :colorID_(colorID), displayName_(displayName), genesisStyle_(true)
    {}
+
+   void initGenesis(const vector<ColorIssue>& issues) { issues_ = issues; genesisStyle_ = true; }
+   void initExodus(BinaryData issuingAddr160) { issuingAddr160_ = issuingAddr160; genesisStyle_ = false;}
 
 private:
    ColorID colorID_;
    string displayName_;
+   bool genesisStyle_;
+   BinaryData issuingAddr160_;
    vector<ColorIssue> issues_;
 };
 
@@ -309,6 +316,7 @@ private:
 
     vector<ColorDefinition> colorDefs_;
     map<OutPoint, IdxColorID> colorIssueMap_; 
+    map<BinaryData, IdxColorID> issuingAddressMap_;
 
     int64_t lastScannedBlock_;
     set<OutPoint> outstandingColoredOutpoints_;

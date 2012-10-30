@@ -2723,10 +2723,9 @@ uint32_t BlockDataManager_FileRefs::parseEntireBlockchain( string   blkdir,
             nBlkRead++;
             nBytesRead += nextBlkSize;
             bsb.reader().advance(nextBlkSize);
-            
-//            if (nBlkRead>1000) break; // hach 
+	    //	    if (nBlkRead>1000) break; // hach
          }
-//         if (nBlkRead>1000) break; //hach
+	 //	 if (nBlkRead>1000) break; //hach
       }
       globalCache.openFile(fnum-1, blkfile);
       TIMER_STOP("ScanBlockchain");
@@ -3891,7 +3890,13 @@ bool ColorMan::computeTxColors(Tx& tx)
         if (cit != colorIssueMap_.end())
             color = cit->second;
         else
-            color = getTxOColorRaw(prevTxHash, op.getTxOutIndex());
+	{
+	    map<BinaryData, IdxColorID>::const_iterator cit2 = issuingAddressMap_.find(txo.getRecipientAddr());
+	    if (cit2 != issuingAddressMap_.end())
+		color = cit2->second;
+	    else 
+		color = getTxOColorRaw(prevTxHash, op.getTxOutIndex());
+	}
         
         inputs.push_back(TxEltColor(amount, color));
         outstandingColoredOutpoints_.erase(op);
@@ -3957,16 +3962,21 @@ void ColorMan::scanColoredTransactionsAt(uint32_t blockHeight)
             }
         }
 
-        if (!colored)
-            for (int i = 0; i < numOutputs; ++i)
-            {
-                OutPoint op(txhash, i);
-                if (colorIssueMap_.count(op))
-                {
-                    colored = true;
-                    break;
-                }
-            }
+	for (int i = 0; i < numOutputs; ++i)
+	{
+	    TxOut txo = tx.getTxOut(i);
+	    OutPoint op(txhash, i);
+	    
+	    if (issuingAddressMap_.count(txo.getRecipientAddr())) {
+		// output to issuing address itself isn't colored, but
+		// spending this outpoint issues color
+		outstandingColoredOutpoints_.insert(op);
+		cout << "Spend from issuing address " << endl;
+	    }
+	    
+	    if (!colored && (colorIssueMap_.count(op)))
+		colored = true;
+	}
             
 
         if (colored) computeTxColors(tx);
@@ -3985,13 +3995,21 @@ void ColorMan::computeColorMap()
     
     for (size_t i = 0; i < colorDefs_.size(); ++i)
     {
-        const vector<ColorIssue>& issues = colorDefs_[i].getIssues();
-        
-        for (vector<ColorIssue>::const_iterator iit = issues.begin(); iit != issues.end(); ++iit)
-        {
-            OutPoint op(iit->genesisTxHash, iit->outputIndex);
-            colorIssueMap_.insert(pair<OutPoint, IdxColorID>(op, i));
+	if (colorDefs_[i].isGenesisStyle())
+	{
+	    const vector<ColorIssue>& issues = colorDefs_[i].getIssues();
+	    
+	    for (vector<ColorIssue>::const_iterator iit = issues.begin(); 
+		 iit != issues.end(); ++iit)
+	    {
+		OutPoint op(iit->genesisTxHash, iit->outputIndex);
+		colorIssueMap_.insert(pair<OutPoint, IdxColorID>(op, i));
+	    }
         }
+	else
+	{
+	    issuingAddressMap_[colorDefs_[i].getIssuingAddr160()] = i;
+	}
     }
 }
 
