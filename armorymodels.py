@@ -411,17 +411,16 @@ class WalletAddrDispModel(QAbstractTableModel):
             else:
                return QVariant('')
          if col==COL.NumTx: 
-            cppAddr = self.wlt.cppWallet.getAddrByHash160(addr160)
-            return QVariant( len(cppAddr.getTxLedger()) + \
-                             len(cppAddr.getZeroConfLedger()))
+            ledg = self.wlt.getAddrTxLedger(addr160, 'Full')
+            return QVariant( len(ledg) )
          if col==COL.Imported:
             if self.wlt.addrMap[addr160].chainIndex==-2:
                return QVariant('Imported')
             else:
                return QVariant()
          if col==COL.Balance: 
-            cppAddr = self.wlt.cppWallet.getAddrByHash160(addr160)
-            return QVariant( coin2str(cppAddr.getFullBalance(), maxZeros=2) )
+            val = self.wlt.getAddrBalance(addr160, 'Full')
+            return QVariant( coin2str(val, maxZeros=2) )
       elif role==Qt.TextAlignmentRole:
          if col in (COL.Address, COL.Comment):
             return QVariant(int(Qt.AlignLeft | Qt.AlignVCenter))
@@ -431,12 +430,11 @@ class WalletAddrDispModel(QAbstractTableModel):
             return QVariant(int(Qt.AlignRight | Qt.AlignVCenter))
       elif role==Qt.ForegroundRole:
          if col==COL.Balance:
-            cppAddr = self.wlt.cppWallet.getAddrByHash160(addr160)
-            val = cppAddr.getFullBalance()
+            val = self.wlt.getAddrBalance(addr160, 'Full')
             if   val>0: return QVariant(Colors.TextGreen)
             else:       return QVariant(Colors.Foreground)
       elif role==Qt.FontRole:
-         hasTx = len(self.wlt.cppWallet.getAddrByHash160(addr160).getTxLedger())>0
+         hasTx = len(self.wlt.getAddrTxLedger(addr160, 'blk'))>0
          cmt = str(self.index(index.row(),COL.Comment).data().toString())
          isChange = (cmt==CHANGE_ADDR_DESCR_STRING)
 
@@ -453,8 +451,7 @@ class WalletAddrDispModel(QAbstractTableModel):
                             'receive change-back-to-self from an oversized '
                             'transaction.')
       elif role==Qt.BackgroundColorRole:
-         cppAddr = self.wlt.cppWallet.getAddrByHash160(addr160)
-         val = cppAddr.getFullBalance()
+         val = self.wlt.getAddrBalance(addr160, 'Full')
          if val>0:
             return QVariant( Colors.SlightGreen )
          else:

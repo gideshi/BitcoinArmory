@@ -2835,10 +2835,8 @@ class DlgAddressInfo(ArmoryDialog):
       
 
       dlgLayout = QGridLayout()
-      cppAddr = self.wlt.cppWallet.getAddrByHash160(addr160)
+      spBalance = self.wlt.getAddrBalance(addr160, 'Spendable')
       addrStr = self.addr.getAddrStr()
-
-
 
       lblDescr = QLabel('Information for address:  ' + addrStr)
       
@@ -2893,8 +2891,8 @@ class DlgAddressInfo(ArmoryDialog):
             'This is the current <i>spendable</i> balance of this address, '
             'not including zero-confirmation transactions from others.'))
       lbls[-1].append( QRichLabel('<b>Current Balance</b>') )
-      balStr = coin2str(cppAddr.getSpendableBalance(), maxZeros=1)
-      if cppAddr.getSpendableBalance()>0:
+      balStr = coin2str(spBalance, maxZeros=1)
+      if spBalance>0:
          goodColor = htmlColor('MoneyPos')
          lbls[-1].append( QRichLabel( \
             '<font color=' + goodColor + '>' + balStr.strip() + '</font> BTC' ))
@@ -4965,7 +4963,7 @@ class DlgSendBitcoins(ArmoryDialog):
       
 
       # Get unspent outs for this wallet:
-      utxoList = self.wlt.getTxOutListX(-2, 'Spendable')
+      utxoList = self.wlt.getTxOutList('Spendable')
       utxoSelect = PySelectCoins(utxoList, totalSend, fee)
 
 

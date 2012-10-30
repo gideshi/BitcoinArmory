@@ -1137,10 +1137,10 @@ def LoadColorDefinitions():
          colorname = cf.get(colorid, "name")
          style = cf.get(colorid, "style")
          print "Color definition:" + colorname + "(" + style + ")"
+         cd = Cpp.ColorDefinition(colorid, colorname)
          if (style == "genesis"):
             nissues = cf.getint(colorid, "number_of_issues")
             vci = Cpp.vector_ColorIssue()
-            
             for i in xrange(1, nissues + 1):
                txhash_s = cf.get(colorid, "i_txhash_" + str(i))
                outidx = cf.getint(colorid, "i_outidx_" + str(i))
@@ -1149,11 +1149,13 @@ def LoadColorDefinitions():
                ci = Cpp.ColorIssue()
                ci.init(txhash, outidx)
                vci.push_back(ci)
-
-            cd = Cpp.ColorDefinition(colorid, colorname, vci)
-            colorDude.addColorDefinition(cd)
+            cd.initGenesis(vci)
          else:
-            raise Exception("Style not implemented", style)
+            addrhash_s = cf.get(colorid, "addrhash")
+            addrhash =  hex_to_binary(addrhash_s,  endIn=BIGENDIAN, endOut=BIGENDIAN)
+            cd.initExodus(addrhash)
+
+         colorDude.addColorDefinition(cd)
 
    if os.path.exists(cdd):
       for cdfile in os.listdir(cdd):
@@ -5822,10 +5824,13 @@ class PyBtcWalletCW(object):
       return self.ww.getTxOutListX(self.color, txType)
 
    def getAddrBalance(self, addr160, balType="Spendable", currBlk=UINT32_MAX):
-      return self.ww.getAddrBalanceX(self.color,ballType,currBlk)
+      return self.ww.getAddrBalanceX(self.color, addr160, balType, currBlk)
 
    def getAddrTxOutList(self, addr160, txType='Spendable'):
       return self.ww.getAddrTxOutListX(self.color, addr160, txType='Spendable')
+
+   def getAddrTxLedger(self, addr160, ledgType='Full'):
+      return self.ww.getAddrTxLedgerX(self.color, addr160, ledgType)
 
 ################################################################################
 ################################################################################
@@ -6104,7 +6109,7 @@ class PyBtcWallet(object):
 
 
    #############################################################################
-   def getAddrBalanceX(self,color, addr160, balType="Spendable", currBlk=UINT32_MAX):
+   def getAddrBalanceX(self, color, addr160, balType="Spendable", currBlk=UINT32_MAX):
       if not TheBDM.isInitialized() or not self.hasAddr(addr160):
          return -1
       else:
@@ -6144,24 +6149,27 @@ class PyBtcWallet(object):
 
 
    #############################################################################
-   def getAddrTxLedger(self, addr160, ledgType='Full'):
+   def getAddrTxLedgerX(self, color, addr160, ledgType='Full'):
       """ 
       Gets the ledger entries for the entire wallet, from C++/SWIG data structs
       """
       if not TheBDM.isInitialized() or not self.hasAddr(addr160):
          return []
       else:
+         def filterByColor(ledger):
+            return [e for e in ledger if e.matchesColor(color)]
+
          ledgBlkChain = self.cppWallet.getAddrByHash160(addr160).getTxLedger()
          ledgZeroConf = self.cppWallet.getAddrByHash160(addr160).getZeroConfLedger()
          if ledgType.lower() in ('full','all','ultimate'):
             ledg = []
             ledg.extend(ledgBlkChain)
             ledg.extend(ledgZeroConf)
-            return ledg
+            return filterByColor(ledg)
          elif ledgType.lower() in ('blk', 'blkchain', 'blockchain'):
-            return ledgBlkChain
+            return filterByColor(ledgBlkChain)
          elif ledgType.lower() in ('zeroconf', 'zero'):
-            return ledgZeroConf
+            return filterByColor(ledgZeroConf)
          else:
             raise TypeError, 'Unknown balance type! "' + ledgType + '"'
 
