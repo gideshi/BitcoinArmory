@@ -1052,7 +1052,7 @@ void BtcWallet::scanTx(Tx & tx,
                        uint32_t blknum)
 {
    
-   int64_t totalLedgerAmt = 0;
+   map <IdxColorID, int64_t> totalLedgerAmt;
    bool isZeroConf = blknum==UINT32_MAX;
 
    vector<bool> thisTxOutIsOurs(tx.getNumTxOut(), false);
@@ -1107,7 +1107,10 @@ void BtcWallet::scanTx(Tx & tx,
             // We need to make sure the ledger entry makes sense, and make
             // sure we update TxIO objects appropriately
             int64_t thisVal = (int64_t)txout.getValue();
-            totalLedgerAmt -= thisVal;
+	    if(totalLedgerAmt.count(txio.getColor()))
+	      totalLedgerAmt[txio.getColor()] -= thisVal;
+	    else
+	      totalLedgerAmt.insert(pair<IdxColorID, int64_t>(txio.getColor(), thisVal));
 
             // Skip, if this is a zero-conf-spend, but it's already got a zero-conf
             if( isZeroConf && txio.hasTxInZC() )
@@ -1185,13 +1188,17 @@ void BtcWallet::scanTx(Tx & tx,
             // If we got here, at least this TxOut is for this address.
             // But we still need to find out if it's new and update
             // ledgers/TXIOs appropriately
-            int64_t thisVal = (int64_t)(txout.getValue());
-            totalLedgerAmt += thisVal;
-
             OutPoint outpt(tx.getThisHash(), iout);      
             map<OutPoint, TxIOPair>::iterator txioIter = txioMap_.find(outpt);
             bool txioWasInMapAlready = (txioIter != txioMap_.end());
             bool doAddLedgerEntry = false;
+
+	    int64_t thisVal = (int64_t)(txout.getValue());
+	    if(totalLedgerAmt.count(txioIter->second.getColor()))
+	      totalLedgerAmt[txioIter->second.getColor()] += thisVal;
+	    else
+	      totalLedgerAmt.insert(pair<IdxColorID, int64_t>(txioIter->second.getColor(),thisVal));
+
             if(txioWasInMapAlready)
             {
                if(isZeroConf) 
@@ -1290,20 +1297,25 @@ void BtcWallet::scanTx(Tx & tx,
 
    if(anyNewTxInIsOurs || anyNewTxOutIsOurs)
    {
-      LedgerEntry le( BinaryData(0),
-                      totalLedgerAmt, 
-                      blknum, 
-                      tx.getThisHash(), 
-                      txIndex,
-                      txtime,
-                      isCoinbaseTx,
-                      isSentToSelf,
-                      isChangeBack);
+      map<IdxColorID,int64_t>::iterator it;
+      int i;
+      for(it=totalLedgerAmt.begin(),i=0;it!=totalLedgerAmt.end();++it,++i)
+      {
+	LedgerEntry le( BinaryData(0),
+			totalLedgerAmt[it->first], 
+			blknum, 
+			tx.getThisHash(), 
+			txIndex,
+			txtime,
+			isCoinbaseTx,
+			isSentToSelf,
+			isChangeBack);
 
-      if(isZeroConf)
-         ledgerAllAddrZC_.push_back(le);
-      else
+	if(isZeroConf)
+	  ledgerAllAddrZC_.push_back(le);
+	else
          ledgerAllAddr_.push_back(le);
+      }
    }
 }
 
