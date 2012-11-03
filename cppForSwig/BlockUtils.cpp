@@ -1298,8 +1298,7 @@ void BtcWallet::scanTx(Tx & tx,
    if(anyNewTxInIsOurs || anyNewTxOutIsOurs)
    {
       map<IdxColorID,int64_t>::iterator it;
-      int i;
-      for(it=totalLedgerAmt.begin(),i=0;it!=totalLedgerAmt.end();++it,++i)
+      for(it=totalLedgerAmt.begin();it!=totalLedgerAmt.end();++it)
       {
 	LedgerEntry le( BinaryData(0),
 			totalLedgerAmt[it->first], 
