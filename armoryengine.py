@@ -5796,7 +5796,7 @@ class PyBtcWalletCW(object):
       return self.ww.getTxOutListX(self.color, txType)
 
    def getAddrBalance(self, addr160, balType="Spendable", currBlk=UINT32_MAX):
-      return self.ww.getAddrBalance(self.color,ballType,currBlk)
+      return self.ww.getAddrBalanceX(self.color,ballType,currBlk)
 
    def getAddrTxOutList(self, addr160, txType='Spendable'):
       return self.ww.getAddrTxOutListX(self.color, addr160, txType='Spendable')
