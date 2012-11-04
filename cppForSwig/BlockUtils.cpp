@@ -450,7 +450,7 @@ uint64_t BtcAddress::getSpendableBalanceX(IdxColorID color,uint32_t currBlk)
    }
    for(uint32_t i=0; i<relevantTxIOPtrsZC_.size(); i++)
    {
-      if(relevantTxIOPtrsZC_[i]->isSpendable(currBlk) && relevantTxIOPtrs_[i]->matchesColor(color))
+      if(relevantTxIOPtrsZC_[i]->isSpendable(currBlk) && relevantTxIOPtrsZC_[i]->matchesColor(color))
          balance += relevantTxIOPtrsZC_[i]->getValue();
    }
    return balance;
@@ -484,7 +484,7 @@ uint64_t BtcAddress::getUnconfirmedBalanceX(IdxColorID color,uint32_t currBlk)
    }
    for(uint32_t i=0; i<relevantTxIOPtrsZC_.size(); i++)
    {
-     if(relevantTxIOPtrsZC_[i]->isMineButUnconfirmed(currBlk) && relevantTxIOPtrs_[i]->matchesColor(color))
+     if(relevantTxIOPtrsZC_[i]->isMineButUnconfirmed(currBlk) && relevantTxIOPtrsZC_[i]->matchesColor(color))
          balance += relevantTxIOPtrsZC_[i]->getValue();
    }
    return balance;
