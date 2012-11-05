@@ -5832,6 +5832,9 @@ class PyBtcWalletCW(object):
    def getAddrTxLedger(self, addr160, ledgType='Full'):
       return self.ww.getAddrTxLedgerX(self.color, addr160, ledgType)
 
+   def getTxLedger(self, ledgType='Full'):
+      return self.ww.getTxLedgerX(self.color, ledgType)
+
 ################################################################################
 ################################################################################
 class PyBtcWallet(object):
@@ -6124,24 +6127,27 @@ class PyBtcWallet(object):
             raise TypeError, 'Unknown balance type!'
 
    #############################################################################
-   def getTxLedger(self, ledgType='Full'):
+   def getTxLedgerX(self, color, ledgType='Full'):
       """ 
       Gets the ledger entries for the entire wallet, from C++/SWIG data structs
       """
       if not TheBDM.isInitialized():
          return []
       else:
+         def filterByColor(ledger):
+            return [e for e in ledger if e.matchesColor(color)]
+
          ledgBlkChain = self.cppWallet.getTxLedger()
          ledgZeroConf = self.cppWallet.getZeroConfLedger()
          if ledgType.lower() in ('full','all','ultimate'):
             ledg = []
             ledg.extend(ledgBlkChain)
             ledg.extend(ledgZeroConf)
-            return ledg
+            return filterByColor(ledg)
          elif ledgType.lower() in ('blk', 'blkchain', 'blockchain'):
-            return ledgBlkChain
+            return filterByColor(ledgBlkChain)
          elif ledgType.lower() in ('zeroconf', 'zero'):
-            return ledgZeroConf
+            return filterByColor(ledgZeroConf)
          else:
             raise TypeError, 'Unknown ledger type! "' + ledgType + '"'
 
