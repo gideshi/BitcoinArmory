@@ -311,7 +311,6 @@ class ArmoryMainWindow(QMainWindow):
       lblInfo.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
 
       self.comboColorSelect = QComboBox()
-      self.populateColorCombo()
       def onColorChange(x):
          self.onColorChange()
       self.connect(self.comboColorSelect, SIGNAL('activated(int)'), onColorChange)
@@ -1242,6 +1241,8 @@ class ArmoryMainWindow(QMainWindow):
          BDM_LoadBlockchainFile()
          self.latestBlockNum = TheBDM.getTopBlockHeader().getBlockHeight()
    
+         self.populateColorCombo()
+
          # Now that theb blockchain is loaded, let's populate the wallet info
          if TheBDM.isInitialized():
             mempoolfile = os.path.join(ARMORY_HOME_DIR,'mempool.bin')
@@ -1541,7 +1542,8 @@ class ArmoryMainWindow(QMainWindow):
       self.comboColorSelect.clear()
       self.comboColorSelect.addItem('All colors')
       self.comboColorSelect.addItem('Uncolored')
-      self.comboColorSelect.addItem('My color 0')
+      for [colorname, cd] in color_definitions:
+         self.comboColorSelect.addItem(colorname)
 
    def onColorChange(self):
       idx = self.comboColorSelect.currentIndex()
