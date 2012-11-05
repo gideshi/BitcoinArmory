@@ -1204,13 +1204,6 @@ void BtcWallet::scanTx(Tx & tx,
             bool txioWasInMapAlready = (txioIter != txioMap_.end());
             bool doAddLedgerEntry = false;
 
-	    int64_t thisVal = (int64_t)(txout.getValue());
-            IdxColorID color = txioIter->second.getColor();
-	    if (totalLedgerAmt.count(color))
-                totalLedgerAmt[color] += thisVal;
-	    else
-                totalLedgerAmt.insert(pair<IdxColorID, int64_t>(color, thisVal));
-
             if(txioWasInMapAlready)
             {
                if(isZeroConf) 
@@ -1266,6 +1259,13 @@ void BtcWallet::scanTx(Tx & tx,
 
             anyNewTxOutIsOurs = true;
             thisTxOutIsOurs[iout] = true;
+
+	    int64_t thisVal = (int64_t)(txout.getValue());
+            IdxColorID color = txioIter->second.getColor();
+	    if (totalLedgerAmt.count(color))
+                totalLedgerAmt[color] += thisVal;
+	    else
+                totalLedgerAmt.insert(pair<IdxColorID, int64_t>(color, thisVal));
 
             if(doAddLedgerEntry)
             {
