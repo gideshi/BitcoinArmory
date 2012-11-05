@@ -1116,10 +1116,11 @@ void BtcWallet::scanTx(Tx & tx,
             // We need to make sure the ledger entry makes sense, and make
             // sure we update TxIO objects appropriately
             int64_t thisVal = (int64_t)txout.getValue();
-	    if(totalLedgerAmt.count(txio.getColor()))
-	      totalLedgerAmt[txio.getColor()] -= thisVal;
+            IdxColorID color = txio.getColor();
+	    if(totalLedgerAmt.count(color))
+                totalLedgerAmt[color] -= thisVal;
 	    else
-	      totalLedgerAmt.insert(pair<IdxColorID, int64_t>(txio.getColor(), thisVal));
+                totalLedgerAmt.insert(pair<IdxColorID, int64_t>(color, -thisVal));
 
             // Skip, if this is a zero-conf-spend, but it's already got a zero-conf
             if( isZeroConf && txio.hasTxInZC() )
@@ -1143,11 +1144,11 @@ void BtcWallet::scanTx(Tx & tx,
                anyNewTxInIsOurs = true;
 
                LedgerEntry newEntry(addr20, 
-                                   -(int64_t)thisVal,
+                                    -(int64_t)thisVal,
                                     blknum, 
                                     tx.getThisHash(), 
                                     iin,
-                                    txio.getColor(),
+                                    color,
                                     txtime,
                                     isCoinbaseTx,
                                     false,  // SentToSelf is meaningless for addr ledger
@@ -1204,10 +1205,11 @@ void BtcWallet::scanTx(Tx & tx,
             bool doAddLedgerEntry = false;
 
 	    int64_t thisVal = (int64_t)(txout.getValue());
-	    if(totalLedgerAmt.count(txioIter->second.getColor()))
-	      totalLedgerAmt[txioIter->second.getColor()] += thisVal;
+            IdxColorID color = txioIter->second.getColor();
+	    if (totalLedgerAmt.count(color))
+                totalLedgerAmt[color] += thisVal;
 	    else
-	      totalLedgerAmt.insert(pair<IdxColorID, int64_t>(txioIter->second.getColor(),thisVal));
+                totalLedgerAmt.insert(pair<IdxColorID, int64_t>(color, thisVal));
 
             if(txioWasInMapAlready)
             {
@@ -1272,7 +1274,7 @@ void BtcWallet::scanTx(Tx & tx,
                                      blknum, 
                                      tx.getThisHash(), 
                                      iout,
-                                     txioIter->second.getColor(),
+                                     color,
                                      txtime,
                                      isCoinbaseTx, // input was coinbase/generation
                                      false,   // sentToSelf meaningless for addr ledger
