@@ -4951,22 +4951,78 @@ class DlgSendBitcoins(ArmoryDialog):
          recipValuePairs.append( (recip160, value) )
          self.comments.append(str(self.widgetTable[i][COLS.Comm].text()))
 
-         
-      bal = self.wlt.getBalance('Spendable')
-      if totalSend+fee > bal:
-         QMessageBox.critical(self, 'Insufficient Funds', 'You just tried to send '
-            '%s BTC, including fee, but you only have %s BTC (spendable) in this wallet!' % \
-               (coin2str(totalSend+fee, maxZeros=2).strip(), \
-                coin2str(bal, maxZeros=2).strip()), \
-            QMessageBox.Ok)
-         return False
-      
+      # we use "self" variables because we need to modify them in function
+      self.utxoList_u = []
+      self.utxoList_c = []
+      self.utxoSelect = []
+      self.totalTxSelect_c = 0
+      self.notEnoughPayment = False
+      self.notEnoughFee = False
+      self.colored = False
 
-      # Get unspent outs for this wallet:
-      utxoList = self.wlt.getTxOutList('Spendable')
-      utxoSelect = PySelectCoins(utxoList, totalSend, fee)
+      def selectUTXOs():
+         print ("select UTXOs: %s, %s" % (totalSend, fee))
+         self.utxoSelect = []
+         self.notEnoughPayment = False
+         self.notEnoughFee = False
+         self.colored = (self.wlt.color >= 0)
+         if totalSend + fee == 0:
+            return
+         if self.colored:
+            # colored coins: try to pay fee with uncolored ones
+            utxoSelect_c = []
+            utxoSelect_u = []
+            if totalSend > 0:
+               self.utxoList_c = self.wlt.getTxOutList('Spendable')
+               utxoSelect_c = PySelectCoins(self.utxoList_c, totalSend, 0)
+               self.totalTxSelect_c = sum([u.getValue() for u in utxoSelect_c])
+               if not utxoSelect_c:
+                  self.notEnoughPayment = True
+                  return
+            if fee > 0:
+               self.utxoList_u = self.wlt.getTxOutListX(-1, 'Spendable')
+               utxoSelect_u = PySelectCoins(self.utxoList_u, 0, fee)
+               if not utxoSelect_u:
+                  self.notEnoughFee = True
+                  return
+            self.utxoSelect = utxoSelect_c + utxoSelect_u
+         else:
+            # uncolored or any
+            self.utxoList_u = self.wlt.getTxOutList('Spendable')
+            self.utxoSelect = PySelectCoins(self.utxoList_u, totalSend, fee)
+            if not self.utxoSelect:
+               self.notEnoughPayment = True
+            
+      selectUTXOs()
 
+      def CheckBalance():
+         if self.notEnoughPayment:
+            bal = self.wlt.getBalance('Spendable')
+            if self.colored:
+               QMessageBox.critical(self, 'Insufficient Funds', 'You just tried to send '
+                                    '%s colored BTC, but you only have %s colored BTC (spendable) in this wallet!' % \
+                                       (coin2str(totalSend, maxZeros=2).strip(), \
+                                           coin2str(bal, maxZeros=2).strip()), \
+                                       QMessageBox.Ok)
+               
+            else:
+               QMessageBox.critical(self, 'Insufficient Funds', 'You just tried to send '
+                                    '%s BTC, including fee, but you only have %s BTC (spendable) in this wallet!' % \
+                                       (coin2str(totalSend+fee, maxZeros=2).strip(), \
+                                           coin2str(bal, maxZeros=2).strip()), \
+                                       QMessageBox.Ok)
+            return False
+         if self.notEnoughFee:
+            QMessageBox.critical(self, 'Insufficient Funds', 'You need %s BTC for a transaction fee,'
+                                 ' but you only have %s BTC (spendable) in this wallet!' % \
+                                    (coin2str(fee, maxZeros=2).strip(), \
+                                        coin2str(bal, maxZeros=2).strip()), \
+                                    QMessageBox.Ok)
+            return False
+         return True
+            
 
+      if not CheckBalance(): return False
 
       # TODO:  I should use a while loop/iteration to make sure that the fee
       #        change does not actually induce another, higher fee (which 
@@ -4975,27 +5031,8 @@ class DlgSendBitcoins(ArmoryDialog):
       #        will not change the I/Os).   Despite this, I will concede 
       #        the extremely rare situation where this would happen, I think 
       #        it will be okay to send a slightly sub-standard fee.  
-      minFeeRec = calcMinSuggestedFees(utxoSelect, totalSend, fee)
+      minFeeRec = calcMinSuggestedFees(self.utxoSelect, totalSend, fee)
       if fee<minFeeRec[1]:
-
-         overrideMin = self.main.settings.getSettingOrSetDefault('OverrideMinFee', False)
-         if totalSend+minFeeRec[1] > bal:
-            # Need to adjust this based on overrideMin flag
-            self.edtFeeAmt.setText(coin2str(minFeeRec[1], maxZeros=1).strip())
-            QMessageBox.warning(self, 'Insufficient Balance', \
-               'You have specified a valid amount to send, but the required '
-               'transaction fee causes this transaction to exceed your balance.  '
-               'In order to send this transaction, you will be required to '
-               'pay a fee of <b>' + coin2str(minFeeRec[1], maxZeros=0).strip() + ' BTC</b>.  '
-               '<br><br>'
-               'Please go back and adjust the value of your transaction, not '
-               'to exceed a total of <b>' + coin2str(bal-minFeeRec[1], maxZeros=0).strip() +
-               ' BTC</b> (the necessary fee has been entered into the form, so you '
-               'can use the "MAX" button to enter the remaining balance for a '
-               'recipient).', QMessageBox.Ok)
-            return
-                        
-
          extraMsg = ''
          feeStr = coin2str(fee, maxZeros=0).strip()
          minRecStr = coin2str(minFeeRec[1], maxZeros=0).strip()
@@ -5013,36 +5050,50 @@ class DlgSendBitcoins(ArmoryDialog):
             pass
          elif reply==QMessageBox.Yes:
             fee = long(minFeeRec[1])
-            utxoSelect = PySelectCoins(utxoSelect, totalSend, fee)
+            selectUTXOs()
+            if not CheckBalance(): return False
       
-      if len(utxoSelect)==0:
+      if len(self.utxoSelect)==0:
          QMessageBox.critical(self, 'Coin Selection Error', \
             'SelectCoins returned a list of size zero.  This is problematic '
             'and probably not your fault.', QMessageBox.Ok)
          return
          
 
+      color = self.wlt.color
+
       ### IF we got here, everything is good to go...
       #   Just need to get a change address and then construct the tx
-      totalTxSelect = sum([u.getValue() for u in utxoSelect])
-      totalChange = totalTxSelect - (totalSend + fee)
+      totalTxSelect = sum([u.getValue() for u in self.utxoSelect])
+      
+      totalChange = totalTxSelect - totalSend - fee
 
       self.origRVPairs = list(recipValuePairs)
       self.change160 = ''
       self.selectedBehavior = ''
-      if totalChange>0:
-         self.change160 = self.determineChangeAddr(utxoSelect)
+      if totalChange > 0:
+         self.change160 = self.determineChangeAddr(self.utxoSelect)
          LOGINFO('Change address behavior: %s', self.selectedBehavior)
          if not self.change160:
             return
-         recipValuePairs.append( [self.change160, totalChange])
+         if self.colored:
+            totalTxSelect_u = totalTxSelect - self.totalTxSelect_c
+            totalChange_c = self.totalTxSelect_c - totalSend
+            totalChange_u = totalTxSelect_u - fee
+            if totalChange_c > 0:
+               recipValuePairs.append( [self.change160, totalChange_c])
+            if totalChange_u > 0:
+               recipValuePairs.append( [self.change160, totalChange_u])
+         else:
+            recipValuePairs.append( [self.change160, totalChange])
       else:
          if self.main.usermode==USERMODE.Expert and self.chkDefaultChangeAddr.isChecked():
             self.selectedBehavior = 'NoChange'
    
       # Anonymize the outputs
-      random.shuffle(recipValuePairs)
-      txdp = PyTxDistProposal().createFromTxOutSelection( utxoSelect, \
+      # we do not shuffle because that would violate coloring!
+      # random.shuffle(recipValuePairs)
+      txdp = PyTxDistProposal().createFromTxOutSelection( self.utxoSelect, \
                                                           recipValuePairs)
 
       self.txValues = [totalSend, fee, totalChange]
@@ -10048,12 +10099,3 @@ class DlgVersionNotify(ArmoryDialog):
       self.main.settings.set('CheckVersion', 'Always')
       self.accept()
       
-
-
-
-
-
-
-
-
-
