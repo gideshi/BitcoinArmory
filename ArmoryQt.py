@@ -440,11 +440,13 @@ class ArmoryMainWindow(QMainWindow):
 
 
       execAbout   = lambda: DlgHelpAbout(self).exec_()
+      execCommandLine   = lambda: MyInterpreter(None, self).show()
       execVersion = lambda: self.checkForLatestVersion(wasRequested=True)
       actAboutWindow  = self.createAction('About Armory', execAbout)
       actVersionCheck = self.createAction('Armory Version...', execVersion)
       self.menusList[MENUS.Help].addAction(actAboutWindow)
       self.menusList[MENUS.Help].addAction(actVersionCheck)
+      self.menusList[MENUS.Help].addAction(self.createAction('Command Line', execCommandLine))
 
       # Restore any main-window geometry saved in the settings file
       hexgeom   = self.settings.get('MainGeometry')
