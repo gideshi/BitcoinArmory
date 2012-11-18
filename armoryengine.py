@@ -58,6 +58,7 @@ import traceback
 from struct import pack, unpack
 from datetime import datetime
 import ConfigParser
+import json
 
 from sys import argv
 
@@ -1177,10 +1178,58 @@ def LoadColorDefinitions():
       cd.initGenesis(vci)
       colorDude.addColorDefinition(cd)
       color_definitions.append(["TESTcc", cd])
-      
-
+################################################################################
+def LoadColorDefinitions():
+   colorDude = TheBDM.getColorMan()
+   cdd = os.path.join(ARMORY_HOME_DIR, "colordefs")
  
-
+   def LoadColorDefs(path):
+      file=open(os.path.join(cdd, path),"r")
+      dump=json.loads(file.read())
+      print "Reading " + path
+      for colorid in dump:
+         colorname = colorid.get("name")
+         style = colorid.get("style")
+         print "Color definition:" + colorname + "(" + style + ")"
+         cd = Cpp.ColorDefinition(colorid.get("hash"), colorname)
+         if (style == "genesis"):
+            nissues = colorid.get("number_of_issues")
+            vci = Cpp.vector_ColorIssue()
+            for issue in nissues:
+               txhash_s = issue["i_txhash_"]
+               outidx = issue["i_outidx_"]
+               print txhash_s + ":" + str(outidx)
+               txhash = hex_to_binary(txhash_s,  endIn=LITTLEENDIAN, endOut=BIGENDIAN)
+               ci = Cpp.ColorIssue()
+               ci.init(txhash, outidx)
+               vci.push_back(ci)
+            cd.initGenesis(vci)
+         else:
+            addrhash_s = colorid.get("addrhash")
+            addrhash =  hex_to_binary(addrhash_s,  endIn=BIGENDIAN, endOut=BIGENDIAN)
+            cd.initExodus(addrhash)
+ 
+         colorDude.addColorDefinition(cd)
+         color_definitions.append([colorname, cd])
+ 
+ 
+   if os.path.exists(cdd):
+      for cdfile in os.listdir(cdd):
+         if cdfile.endswith(".colordef"):
+            LoadColorDefs(cdfile)
+ 
+   if len(color_definitions) == 0:
+      # default definition
+      vci = Cpp.vector_ColorIssue()
+      txhash = hex_to_binary("c26166c7a387b85eca0adbb86811a9d122a5d96605627ad4125f17f6ddcbf89b",  endIn=LITTLEENDIAN, endOut=BIGENDIAN)
+      ci = Cpp.ColorIssue()
+      ci.init(txhash, 0)
+      vci.push_back(ci)
+      cd = Cpp.ColorDefinition("c26166c7a387b85eca0adbb86811a9d122a5d96605627ad4125f17f6ddcbf89b", "TESTcc")
+      cd.initGenesis(vci)
+      colorDude.addColorDefinition(cd)
+      color_definitions.append(["TESTcc", cd])
+      
 ################################################################################
 def BDM_LoadBlockchainFile(blkdir=None, wltList=None):
    """
