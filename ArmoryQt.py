@@ -44,6 +44,8 @@ from qtdialogs    import *
 from qtdefines    import *
 from armorycolors import Colors, htmlColor, QAPP
 
+from pyinterp import MyInterpreter
+
 import qrc_img_resources
 
 # All the twisted/networking functionality
