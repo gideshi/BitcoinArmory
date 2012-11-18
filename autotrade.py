@@ -38,7 +38,7 @@ def register(main, wallet, in_addr, accum_addr, out_addr, rate, limit):
             print ("autotrade: got %s inputs, %s BTC, going to send %s colored coins" % \
                        (len(in_utxoList), totalValue, totalCValue))
 
-            my_utxoList = wallet.getTxOutListX(color, 'Spendable')
+            my_utxoList = wallet.getAddrTxOutListX(color, out_addr160, 'Spendable')
             my_utxoSelect = PySelectCoins(my_utxoList, totalCValue, 0)
             if not my_utxoSelect:
                 print "Not enough colored coins, aborting"
