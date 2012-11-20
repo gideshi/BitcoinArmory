@@ -1546,8 +1546,8 @@ class ArmoryMainWindow(QMainWindow):
       self.comboColorSelect.clear()
       self.comboColorSelect.addItem('All colors')
       self.comboColorSelect.addItem('Uncolored')
-      for [colorname, cd] in color_definitions:
-         self.comboColorSelect.addItem(colorname)
+      for x in color_definitions:
+         self.comboColorSelect.addItem(x[0])
 
    def onColorChange(self):
       idx = self.comboColorSelect.currentIndex()

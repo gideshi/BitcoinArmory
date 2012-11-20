@@ -62,6 +62,8 @@ import json
 
 from sys import argv
 
+import colordefs
+
 import optparse
 parser = optparse.OptionParser(usage="%prog [options]\n")
 #parser.add_option("--host", dest="host", default="127.0.0.1",
@@ -1126,92 +1128,53 @@ def binaryBits_to_difficulty(b):
 def difficulty_to_binaryBits(i):
    pass
 
+################################################################################
 color_definitions = []
 
 def LoadColorDefinitions():
    colorDude = TheBDM.getColorMan()
    cdd = os.path.join(ARMORY_HOME_DIR, "colordefs")
-
-   def LoadColorDefs(path):
-      cf = ConfigParser.RawConfigParser()
-      cf.read(os.path.join(cdd, path))
-      print "Reading " + path
-      for colorid in cf.sections():
-         colorname = cf.get(colorid, "name")
-         style = cf.get(colorid, "style")
-         print "Color definition:" + colorname + "(" + style + ")"
-         cd = Cpp.ColorDefinition(colorid, colorname)
-         if (style == "genesis"):
-            nissues = cf.getint(colorid, "number_of_issues")
-            vci = Cpp.vector_ColorIssue()
-            for i in xrange(1, nissues + 1):
-               txhash_s = cf.get(colorid, "i_txhash_" + str(i))
-               outidx = cf.getint(colorid, "i_outidx_" + str(i))
-               print txhash_s + ":" + str(outidx)
-               txhash = hex_to_binary(txhash_s,  endIn=LITTLEENDIAN, endOut=BIGENDIAN)
-               ci = Cpp.ColorIssue()
-               ci.init(txhash, outidx)
-               vci.push_back(ci)
-            cd.initGenesis(vci)
-         else:
-            addrhash_s = cf.get(colorid, "addrhash")
-            addrhash =  hex_to_binary(addrhash_s,  endIn=BIGENDIAN, endOut=BIGENDIAN)
-            cd.initExodus(addrhash)
-
-         colorDude.addColorDefinition(cd)
-         color_definitions.append([colorname, cd])
-
-
-   if os.path.exists(cdd):
-      for cdfile in os.listdir(cdd):
-         if cdfile.endswith(".colordef"):
-            LoadColorDefs(cdfile)
-
-   if len(color_definitions) == 0:
-      # default definition
-      vci = Cpp.vector_ColorIssue()
-      txhash = hex_to_binary("c26166c7a387b85eca0adbb86811a9d122a5d96605627ad4125f17f6ddcbf89b",  endIn=LITTLEENDIAN, endOut=BIGENDIAN)
-      ci = Cpp.ColorIssue()
-      ci.init(txhash, 0)
-      vci.push_back(ci)
-      cd = Cpp.ColorDefinition("c26166c7a387b85eca0adbb86811a9d122a5d96605627ad4125f17f6ddcbf89b", "TESTcc")
-      cd.initGenesis(vci)
+ 
+   def ProcessColorDef(colordef):
+      colorname = colordef["name"]
+      style = colordef["style"]
+      colorid = colordef["colorid"]
+      print "Color definition: " + colorname + "(" + style + "):" + colorid
+      if not colordefs.ValidateColorDefinition(colordef):
+         raise Exception("color definition validation error")
+      cd = Cpp.ColorDefinition(colorid.encode("utf-8"), colorname.encode("utf-8"))
+      if style == "genesis":
+         issues = colordef["issues"]
+         vci = Cpp.vector_ColorIssue()
+         for issue in issues:
+            txhash_s = issue["txhash"]
+            outidx = issue["outindex"]
+            print txhash_s + ":" + str(outidx)
+            txhash = hex_to_binary(txhash_s,  endIn=LITTLEENDIAN, endOut=BIGENDIAN)
+            ci = Cpp.ColorIssue()
+            ci.init(txhash, outidx)
+            vci.push_back(ci)
+         cd.initGenesis(vci)
+      elif style == "address":
+         hash_s = colordef["address_pkhash"]
+         pkhash =  hex_to_binary(hash_s,  endIn=BIGENDIAN, endOut=BIGENDIAN)
+         cd.initExodus(pkhash)
+      else:
+         raise Exception("unknown color definition style")
       colorDude.addColorDefinition(cd)
-      color_definitions.append(["TESTcc", cd])
-################################################################################
-def LoadColorDefinitions():
-   colorDude = TheBDM.getColorMan()
-   cdd = os.path.join(ARMORY_HOME_DIR, "colordefs")
- 
+      color_definitions.append([colorname, colordef, cd])
+
+
    def LoadColorDefs(path):
-      file=open(os.path.join(cdd, path),"r")
-      dump=json.loads(file.read())
+      fp = open(os.path.join(cdd, path), "r")
+      colordefs = json.load(fp)
       print "Reading " + path
-      for colorid in dump:
-         colorname = colorid.get("name")
-         style = colorid.get("style")
-         print "Color definition:" + colorname + "(" + style + ")"
-         cd = Cpp.ColorDefinition(colorid.get("hash"), colorname)
-         if (style == "genesis"):
-            nissues = colorid.get("number_of_issues")
-            vci = Cpp.vector_ColorIssue()
-            for issue in nissues:
-               txhash_s = issue["i_txhash_"]
-               outidx = issue["i_outidx_"]
-               print txhash_s + ":" + str(outidx)
-               txhash = hex_to_binary(txhash_s,  endIn=LITTLEENDIAN, endOut=BIGENDIAN)
-               ci = Cpp.ColorIssue()
-               ci.init(txhash, outidx)
-               vci.push_back(ci)
-            cd.initGenesis(vci)
-         else:
-            addrhash_s = colorid.get("addrhash")
-            addrhash =  hex_to_binary(addrhash_s,  endIn=BIGENDIAN, endOut=BIGENDIAN)
-            cd.initExodus(addrhash)
- 
-         colorDude.addColorDefinition(cd)
-         color_definitions.append([colorname, cd])
- 
+      for colordef in colordefs:
+         try:
+            ProcessColorDef(colordef)
+         except Exception as e:
+            print "skipping color defintion due to error (%s)" % e
+            raise
  
    if os.path.exists(cdd):
       for cdfile in os.listdir(cdd):
