@@ -16,6 +16,8 @@ from armorymodels import *
 from armorycolors import Colors, htmlColor
 import qrc_img_resources
 
+import colortools
+
 MIN_PASSWD_WIDTH = lambda obj: tightSizeStr(obj, '*'*16)[0]
 
 
@@ -10099,3 +10101,309 @@ class DlgVersionNotify(ArmoryDialog):
       self.main.settings.set('CheckVersion', 'Always')
       self.accept()
       
+class DlgIssueColoredCoins(ArmoryDialog):
+   def __init__(self, wallet, parent, main):
+      super(DlgIssueColoredCoins, self).__init__(parent, main)
+
+      self.wallet = wallet
+
+      line = 0
+
+      layout = QGridLayout()
+      self.layout = layout
+      self.editName = QLineEdit()
+      layout.addWidget(QLabel("Name"), line, 0)
+      layout.addWidget(self.editName, line, 1)
+      line += 1
+
+      self.editAddress = QLineEdit()
+      self.editAddress.setText(wallet.getNextUnusedAddress().getAddrStr())
+      self.editAddress.setMinimumWidth(relaxedSizeNChar(GETFONT('var'), 45)[0])
+
+      layout.addWidget(QLabel("Receiving address"), line, 0)
+      layout.addWidget(self.editAddress, line, 1)
+      line += 1
+
+      self.editUnit = QLineEdit()
+      self.editUnit.setText('1')
+      layout.addWidget(QLabel("Satoshi per unit"), line, 0)
+      layout.addWidget(self.editUnit, line, 1)
+      line += 1
+
+      self.editAmount = QLineEdit()
+      self.editAmount.setText('1000')
+      layout.addWidget(QLabel("Number of units"), line, 0)
+      layout.addWidget(self.editAmount, line, 1)
+      line += 1
+
+      self.chkPublish = QCheckBox("Publish on server")
+      self.chkPublish.setChecked(True)
+      layout.addWidget(self.chkPublish, line, 0, 1, 2)
+      line += 1
+
+      btnIssue =  QPushButton("Issue")
+      btnCancel =  QPushButton("Cancel")
+
+      self.btnbox = QDialogButtonBox()
+      self.btnbox.addButton(btnIssue,    QDialogButtonBox.ActionRole)
+      self.btnbox.addButton(btnCancel,    QDialogButtonBox.RejectRole)
+      layout.addWidget(self.btnbox, line, 0, 1, 2)
+      line += 1
+
+      self.connect(btnIssue, SIGNAL('clicked()'), self.clickIssue)
+      self.connect(btnCancel, SIGNAL('clicked()'), self, SLOT('reject()'))
+
+      self.lastline = line
+      
+      self.setLayout(layout)
+      self.setWindowTitle("Issue colored coins")
+
+      
+   def clickIssue(self):
+      try:
+         toAddrStr = str(self.editAddress.text()).strip()
+         unit = int(str(self.editUnit.text()).strip())
+         amount = int(str(self.editAmount.text()).strip())
+         name = str(self.editName.text()).strip()
+
+         if (unit < 1) or not name or (amount < 1):
+            raise Exception()
+         if len(addrStr_to_hash160(toAddrStr)) != 20:
+            raise Exception()
+      except Exception as e:
+         print "Exception: %s" % e
+         QMessageBox.critical(self, 'Invalid parameters', \
+                                 'Parameters do not look good, please check them',\
+                              QMessageBox.Ok)
+         return
+
+      colorid = None
+      try:
+         colortools.main = self.main
+         partial_def = {"name": name, "unit": unit}
+         colorid = colortools.issue_colored_coins(self.wallet, toAddrStr, amount, partial_def)
+      except Exception as e:
+         QMessageBox.critical(self, 'Failed to issue', \
+                                 "Problem when issuing coins: %s" % e, \
+                                 QMessageBox.Ok)
+         self.reject()
+         return
+
+      QMessageBox.information(self, "Success",\
+                                 "Colored coins were issued.", QMessageBox.Ok)
+
+      if self.chkPublish.isChecked():
+         try:
+            if colortools.upload_color_definition(colorid):
+               QMessageBox.information(self, "Success", \
+                                          "Color definition was uploaded to server", QMessageBox.Ok)
+         except Exception as e:
+            QMessageBox.critical(self, "Failure", \
+                                    "Uploading color definition to server failed: %s, you can try to upload it later." % e, \
+                                    QMessageBox.Ok)
+      self.btnbox.clear()
+      okbutton = QPushButton("OK")
+      self.btnbox.addButton(okbutton, QDialogButtonBox.AcceptRole)
+      self.connect(okbutton, SIGNAL('clicked()'), self, SLOT('accept()'))
+
+      self.coloridEdit = QLineEdit()
+      self.coloridEdit.setText(colorid)
+      self.coloridEdit.setReadOnly(True)
+      self.layout.addWidget(QLabel("ColorID"), self.lastline, 0)
+      self.layout.addWidget(self.coloridEdit, self.lastline, 1)
+
+
+class DlgDownloadColorDefinition(ArmoryDialog):
+   def __init__(self, parent, main):
+      super(DlgDownloadColorDefinition, self).__init__(parent, main)
+      self.layout = QGridLayout()
+      self.setLayout(self.layout)
+      self.setWindowTitle("Download color definition")
+
+      colortools.main = main
+
+      self.editURL = QLineEdit()
+      self.editURL.setMinimumWidth(relaxedSizeNChar(GETFONT('var'), 50)[0])
+      self.layout.addWidget(QLabel("URL or ColorID"), 0, 0)
+      self.layout.addWidget(self.editURL, 0, 1)
+
+      btnDownload =  QPushButton("Download")
+      btnCancel =  QPushButton("Cancel")
+
+      self.btnbox = QDialogButtonBox()
+      self.btnbox.addButton(btnDownload,    QDialogButtonBox.ActionRole)
+      self.btnbox.addButton(btnCancel,    QDialogButtonBox.RejectRole)
+      self.layout.addWidget(self.btnbox, 1, 0, 1, 2)
+
+      self.connect(btnDownload, SIGNAL('clicked()'), self.clickDownload)
+      self.connect(btnCancel, SIGNAL('clicked()'), self, SLOT('reject()'))
+
+   def clickDownload(self):
+      url = str(self.editURL.text())
+      try:
+         colordef = colortools.fetch_color_definition(url)
+      except Exception as e:
+         QMessageBox.critical(self, "Unfortunately", \
+                                 "We could not fetch this definition because: %s" % e, \
+                                 QMessageBox.Ok)
+         return
+
+      if colortools.find_color_definition(colordef['colorid']):
+         QMessageBox.information(self, "Already...", \
+                                     "This color definition was already installed.", \
+                                     QMessageBox.Ok)
+         self.reject()
+         return
+
+      msg = ("Fetched color definition with name <b>%s</b> and ColorID %s."
+             "Proceed to install it?") % (colordef.get('name', "<unnamed>"), colordef['colorid'])
+
+      reply = QMessageBox.question(self, "Is that OK?", msg, \
+                                      QMessageBox.Ok | QMessageBox.Cancel)
+      if reply == QMessageBox.Ok:
+         try:
+            colortools.store_color_def(colordef)
+         except Exception as e:
+            QMessageBox.critical(self, "Failed to store", \
+                                    "Problem with storing color definition: %s" % e, \
+                                    QMessageBox.Ok)
+            self.reject()
+         QMessageBox.information(self, "Success!", \
+                                    "Color definition was saved. You need to <b>restart</b>"
+                                 "Armory for it to take effect", QMessageBox.Ok)
+         self.accept()
+      else:
+         self.reject()
+
+class DlgManageColorDefinitions(ArmoryDialog):
+   def __init__(self, parent, main):
+      super(DlgManageColorDefinitions, self).__init__(parent, main)
+      self.layout = QGridLayout()
+
+      colortools.main = main
+
+      self.comboColorSelect = QComboBox()
+      def onColorChange(x):
+         self.onColorChange()
+      self.connect(self.comboColorSelect, SIGNAL('activated(int)'), onColorChange)
+      
+      self.layout.addWidget(QLabel("Select color:"), 0, 0)
+      self.layout.addWidget(self.comboColorSelect, 0, 1)
+
+      self.populateColorCombo()
+
+      line = 1
+      
+      self.lineColorID = QLineEdit()
+      self.lineColorID.setMinimumWidth(relaxedSizeNChar(GETFONT('var'), 45)[0])
+      self.lineColorID.setReadOnly(True)
+      self.layout.addWidget(QLabel("ColorID"), line, 0)
+      self.layout.addWidget(self.lineColorID, line, 1)
+      line += 1
+
+      self.lineBalance = QLineEdit()
+      self.lineBalance.setReadOnly(True)
+      self.layout.addWidget(QLabel("Balance"), line, 0)
+      self.layout.addWidget(self.lineBalance, line, 1)
+      line += 1
+
+      self.lineStatus = QLineEdit()
+      self.lineStatus.setReadOnly(True)
+      self.layout.addWidget(QLabel("Status"), line, 0)
+      self.layout.addWidget(self.lineStatus, line, 1)
+      line += 1
+
+      self.lineUnit = QLineEdit()
+      self.lineUnit.setReadOnly(True)
+      self.layout.addWidget(QLabel("Unit (satoshis)"), line, 0)
+      self.layout.addWidget(self.lineUnit, line, 1)
+      line += 1
+      
+      self.btnPublish =  QPushButton("Publish")
+      self.btnDelete =  QPushButton("Delete")
+      btnClose =  QPushButton("Close")
+
+      self.btnDelete.setEnabled(False)
+      self.btnPublish.setEnabled(False)
+
+      self.btnbox = QDialogButtonBox()
+      self.btnbox.addButton(self.btnPublish,    QDialogButtonBox.ActionRole)
+      self.btnbox.addButton(self.btnDelete,    QDialogButtonBox.ActionRole)
+      self.btnbox.addButton(btnClose,    QDialogButtonBox.RejectRole)
+      self.layout.addWidget(self.btnbox, line, 0, 1, 2)
+      line += 1
+
+      self.connect(self.btnPublish, SIGNAL('clicked()'), self.clickPublish)
+      self.connect(self.btnDelete, SIGNAL('clicked()'), self.clickDelete)
+      self.connect(btnClose, SIGNAL('clicked()'), self, SLOT('reject()'))
+
+      self.setLayout(self.layout)
+      self.setWindowTitle("Manage color definitions")
+
+   def populateColorCombo(self):
+      self.comboColorSelect.clear()
+      self.comboColorSelect.insertSeparator(0)
+      for x in color_definitions:
+         self.comboColorSelect.addItem(x[0])
+   
+   def clickPublish(self):
+      colorid = self.colordef['colorid']
+      try:
+         if colortools.upload_color_definition(colorid):
+            QMessageBox.information(self, "Success", \
+                                       "Color definition was uploaded to server", QMessageBox.Ok)
+            self.onColorChange()
+      except Exception as e:
+         QMessageBox.critical(self, "Failure", \
+                                 "Uploading color definition to server failed: %s, you can try to upload it later." % e, \
+                                 QMessageBox.Ok)
+
+   def clickDelete(self):
+      colortools.delete_color_def(self.colordef['colorid'])
+      color_definitions[self.color][0] = '[DELETED] ' + color_definitions[self.color][0]
+      self.colordef['_deleted'] = 1
+      self.onColorChange()
+      self.populateColorCombo()
+      self.main.populateColorCombo()
+
+   def onColorChange(self):
+      if not color_definitions:
+         return
+
+      idx = self.comboColorSelect.currentIndex()
+      color = idx - 1
+      colordef = color_definitions[color][1]
+
+      self.color = color
+      self.colordef = colordef
+
+      self.lineColorID.setText(colordef['colorid'])
+      self.lineUnit.setText(str(colordef.get('unit', 1)))
+      balance = 0
+      for  wlt in self.main.walletMap.itervalues():
+         balance += wlt.getBalanceX(color, 'Total')
+      unit = colordef.get('unit', 1)
+      balanceStr = '%0.5f' % (float(balance)/float(unit))
+      self.lineBalance.setText(balanceStr)
+
+      if colordef.get('_deleted', False):
+         self.btnDelete.setEnabled(False)
+         self.lineStatus.setText('Deleted')
+         self.btnPublish.setEnabled(False)
+         return
+
+      serverDef = None
+      try:
+         serverDef = colortools.fetch_color_definition(colordef['colorid'])
+      except Exception as e:
+         print "fetch color definition %s" % e
+
+      self.btnDelete.setEnabled(True)
+
+      if serverDef:
+         self.lineStatus.setText('Published')
+         self.btnPublish.setEnabled(False)
+      else:
+         self.lineStatus.setText('Not published')
+         self.btnPublish.setEnabled(True)
+                  

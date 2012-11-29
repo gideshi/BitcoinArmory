@@ -63,8 +63,6 @@ class ArmoryMainWindow(QMainWindow):
    #############################################################################
    def __init__(self, parent=None):
       super(ArmoryMainWindow, self).__init__(parent)
-
-
       # SETUP THE WINDOWS DECORATIONS
       self.lblLogoIcon = QLabel()
       if USE_TESTNET:
@@ -299,7 +297,6 @@ class ArmoryMainWindow(QMainWindow):
       btnRecvBtc   = QPushButton("Receive Bitcoins")
       btnWltProps  = QPushButton("Wallet Properties")
       btnOfflineTx = QPushButton("Offline Transactions")
- 
 
       self.connect(btnWltProps, SIGNAL('clicked()'), self.execDlgWalletDetails)
       self.connect(btnRecvBtc,  SIGNAL('clicked()'), self.clickReceiveCoins)
@@ -362,13 +359,14 @@ class ArmoryMainWindow(QMainWindow):
       ##########################################################################
       # Set up menu and actions
       #MENUS = enum('File', 'Wallet', 'User', "Tools", "Network")
-      MENUS = enum('File', 'User', 'Tools', 'Wallets', 'Help')
+      MENUS = enum('File', 'User', 'Tools', 'Wallets', 'Hallucinate', 'Help')
       self.menu = self.menuBar()
       self.menusList = []
       self.menusList.append( self.menu.addMenu('&File') )
       self.menusList.append( self.menu.addMenu('&User') )
       self.menusList.append( self.menu.addMenu('&Tools') )
       self.menusList.append( self.menu.addMenu('&Wallets') )
+      self.menusList.append( self.menu.addMenu('Hallucinate'))
       self.menusList.append( self.menu.addMenu('&Help') )
       #self.menusList.append( self.menu.addMenu('&Network') )
 
@@ -406,8 +404,6 @@ class ArmoryMainWindow(QMainWindow):
       self.menusList[MENUS.User].addAction(actSetModeAdv)
       self.menusList[MENUS.User].addAction(actSetModeDev)
 
-
-
       currmode = self.settings.getSettingOrSetDefault('User_Mode', 'Advanced')
       LOGINFO('Usermode: %s', currmode)
       self.firstModeSwitch=True
@@ -440,6 +436,16 @@ class ArmoryMainWindow(QMainWindow):
       #self.menusList[MENUS.Wallets].addAction(actMigrateSatoshi)
       self.menusList[MENUS.Wallets].addAction(actAddressBook)
 
+      actIssueCC = self.createAction('&Issue colored coins', self.clickIssueCC)
+      self.menusList[MENUS.Hallucinate].addAction(actIssueCC)
+      actManageCC = self.createAction('&Manage color definitions', self.clickManageCC)
+      self.menusList[MENUS.Hallucinate].addAction(actManageCC)
+
+      def clickDownloadCC():
+         dlg = DlgDownloadColorDefinition(self, self)
+         dlg.exec_()
+      actDownloadCC = self.createAction('&Download color definition', clickDownloadCC)
+      self.menusList[MENUS.Hallucinate].addAction(actDownloadCC)
 
       execAbout   = lambda: DlgHelpAbout(self).exec_()
       execCommandLine   = lambda: MyInterpreter(None, self).show()
@@ -463,8 +469,6 @@ class ArmoryMainWindow(QMainWindow):
          restoreTableView(self.ledgerView, hexledgsz)
          self.ledgerView.setColumnWidth(LEDGERCOLS.NumConf, 20)
          self.ledgerView.setColumnWidth(LEDGERCOLS.TxDir,   72)
-
-
 
       reactor.callLater(0.1,  self.execIntroDialog)
       reactor.callLater(5, self.Heartbeat)
@@ -2123,6 +2127,52 @@ class ArmoryMainWindow(QMainWindow):
 
          DlgDispTxInfo( pytx, self.walletMap[wltID], self, self, txtime=txtime).exec_()
 
+   def clickManageCC(self):
+      dlg = DlgManageColorDefinitions(self, self)
+      dlg.exec_()
+
+   #############################################################################
+   def clickIssueCC(self):
+      # TODO: refactor common code with clickSendBitcoins
+      if not self.isOnline:
+         QMessageBox.warning(self, 'Offline Mode', \
+           'Armory is currently running in offline mode, and has no '
+           'ability to determine balances or create transactions. '
+           '<br><br>'
+           'In order to send coins from this wallet you must use a '
+           'full copy of this wallet from an online computer, '
+           'or initiate an "offline transaction" using a watching-only '
+           'wallet on an online computer.', QMessageBox.Ok)
+         return
+
+      wltID = None
+      selectionMade = True
+      if len(self.walletMap)==0:
+         reply = QMessageBox.information(self, 'No Wallets!', \
+            'You cannot send any Bitcoins until you create a wallet and '
+            'receive some coins.  Would you like to create a wallet?', \
+            QMessageBox.Yes | QMessageBox.No)
+         if reply==QMessageBox.Yes:
+            self.createNewWallet(initLabel='Primary Wallet')
+         return
+      elif len(self.walletMap)==1:
+         wltID = self.walletMap.keys()[0]
+      else:
+         wltSelect = self.walletsView.selectedIndexes()
+         if len(wltSelect)>0:
+            row = wltSelect[0].row()
+            wltID = str(self.walletsView.model().index(row, WLTVIEWCOLS.ID).data().toString())
+         dlg = DlgWalletSelect(self, self, 'Send from Wallet...', firstSelect=wltID, onlyMyWallets=False)
+         if dlg.exec_():
+            wltID = dlg.selectedID 
+         else:
+            selectionMade = False
+
+      if selectionMade:
+         wlt = self.walletMap[wltID]
+         dlgSend = DlgIssueColoredCoins(wlt, self, self)
+         dlgSend.exec_()
+   
 
    #############################################################################
    def clickSendBitcoins(self):

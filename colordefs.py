@@ -60,6 +60,13 @@ def ComputeColorID(props):
 
    return binary_to_hex(hash160(definition_string.encode("utf-8")))
 
+def FinalizeColorDefinition(x):
+    metahash = ComputeColorMetaHash(x)
+    if metahash:
+        x['metahash'] = metahash
+    x['colorid'] = ComputeColorID(x)
+    return x
+
 def ValidateColorDefinition(props):
     metahash = ComputeColorMetaHash(props)
     if metahash != props.get("metahash", ""):

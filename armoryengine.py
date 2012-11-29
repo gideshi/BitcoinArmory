@@ -1131,50 +1131,50 @@ def difficulty_to_binaryBits(i):
 ################################################################################
 color_definitions = []
 
+def AddColorDefinition(colordef):
+   colorDude = TheBDM.getColorMan()
+   colorname = colordef["name"]
+   style = colordef["style"]
+   colorid = colordef["colorid"]
+   print "Color definition: " + colorname + "(" + style + "):" + colorid
+   if not colordefs.ValidateColorDefinition(colordef):
+      raise Exception("color definition validation error")
+   cd = Cpp.ColorDefinition(colorid.encode("utf-8"), colorname.encode("utf-8"))
+   if style == "genesis":
+      issues = colordef["issues"]
+      vci = Cpp.vector_ColorIssue()
+      for issue in issues:
+         txhash_s = issue["txhash"]
+         outidx = issue["outindex"]
+         print txhash_s + ":" + str(outidx)
+         txhash = hex_to_binary(txhash_s,  endIn=LITTLEENDIAN, endOut=BIGENDIAN)
+         ci = Cpp.ColorIssue()
+         ci.init(txhash, outidx)
+      vci.push_back(ci)
+      cd.initGenesis(vci)
+   elif style == "address":
+      hash_s = colordef["address_pkhash"]
+      pkhash =  hex_to_binary(hash_s,  endIn=BIGENDIAN, endOut=BIGENDIAN)
+      cd.initExodus(pkhash)
+   else:
+      raise Exception("unknown color definition style")
+   colorDude.addColorDefinition(cd)
+   color_definitions.append([colorname, colordef, cd])
+
 def LoadColorDefinitions():
    colorDude = TheBDM.getColorMan()
    cdd = os.path.join(ARMORY_HOME_DIR, "colordefs")
- 
-   def ProcessColorDef(colordef):
-      colorname = colordef["name"]
-      style = colordef["style"]
-      colorid = colordef["colorid"]
-      print "Color definition: " + colorname + "(" + style + "):" + colorid
-      if not colordefs.ValidateColorDefinition(colordef):
-         raise Exception("color definition validation error")
-      cd = Cpp.ColorDefinition(colorid.encode("utf-8"), colorname.encode("utf-8"))
-      if style == "genesis":
-         issues = colordef["issues"]
-         vci = Cpp.vector_ColorIssue()
-         for issue in issues:
-            txhash_s = issue["txhash"]
-            outidx = issue["outindex"]
-            print txhash_s + ":" + str(outidx)
-            txhash = hex_to_binary(txhash_s,  endIn=LITTLEENDIAN, endOut=BIGENDIAN)
-            ci = Cpp.ColorIssue()
-            ci.init(txhash, outidx)
-            vci.push_back(ci)
-         cd.initGenesis(vci)
-      elif style == "address":
-         hash_s = colordef["address_pkhash"]
-         pkhash =  hex_to_binary(hash_s,  endIn=BIGENDIAN, endOut=BIGENDIAN)
-         cd.initExodus(pkhash)
-      else:
-         raise Exception("unknown color definition style")
-      colorDude.addColorDefinition(cd)
-      color_definitions.append([colorname, colordef, cd])
-
 
    def LoadColorDefs(path):
-      fp = open(os.path.join(cdd, path), "r")
-      colordefs = json.load(fp)
-      print "Reading " + path
-      for colordef in colordefs:
-         try:
-            ProcessColorDef(colordef)
-         except Exception as e:
-            print "skipping color defintion due to error (%s)" % e
-            raise
+      with open(os.path.join(cdd, path), "r") as fp:
+         colordefs = json.load(fp)
+         print "Reading " + path
+         for colordef in colordefs:
+            try:
+               AddColorDefinition(colordef)
+            except Exception as e:
+               print "skipping color defintion due to error (%s)" % e
+               raise
  
    if os.path.exists(cdd):
       for cdfile in os.listdir(cdd):
