@@ -1161,6 +1161,22 @@ def AddColorDefinition(colordef):
    colorDude.addColorDefinition(cd)
    color_definitions.append([colorname, colordef, cd])
 
+def _store_color_def(colordef):
+    colorid = colordef['colorid']
+    path = os.path.join(ARMORY_HOME_DIR, "colordefs", "%s.colordef" % colorid)
+    with open(path, "w") as f:
+        json.dump([colordef], f, indent = True)
+
+def MakeTestColorDefinition():
+   cd = {'metaprops': ['name', 'unit'],
+         'metahash': '776d7100a4e22ca75d038d4e533b876f61ecc3a6',
+         'name': 'TESTcc',
+         'colorid': '7452b90e22a0b758a048a3db9efa4fd361107350',
+         'style': 'genesis',
+         'issues': [{'outindex': 0, 'txhash': u'c26166c7a387b85eca0adbb86811a9d122a5d96605627ad4125f17f6ddcbf89b'}],
+         'unit': 1}
+   _store_color_def(cd)
+
 def LoadColorDefinitions():
    colorDude = TheBDM.getColorMan()
    cdd = os.path.join(ARMORY_HOME_DIR, "colordefs")
@@ -1175,24 +1191,16 @@ def LoadColorDefinitions():
             except Exception as e:
                print "skipping color defintion due to error (%s)" % e
                raise
+
+   if not os.path.exists(cdd):
+      os.mkdir(cdd)
+      MakeTestColorDefinition()
  
    if os.path.exists(cdd):
       for cdfile in os.listdir(cdd):
          if cdfile.endswith(".colordef"):
             LoadColorDefs(cdfile)
- 
-   if len(color_definitions) == 0:
-      # default definition
-      vci = Cpp.vector_ColorIssue()
-      txhash = hex_to_binary("c26166c7a387b85eca0adbb86811a9d122a5d96605627ad4125f17f6ddcbf89b",  endIn=LITTLEENDIAN, endOut=BIGENDIAN)
-      ci = Cpp.ColorIssue()
-      ci.init(txhash, 0)
-      vci.push_back(ci)
-      cd = Cpp.ColorDefinition("c26166c7a387b85eca0adbb86811a9d122a5d96605627ad4125f17f6ddcbf89b", "TESTcc")
-      cd.initGenesis(vci)
-      colorDude.addColorDefinition(cd)
-      color_definitions.append(["TESTcc", cd])
-      
+    
 ################################################################################
 def BDM_LoadBlockchainFile(blkdir=None, wltList=None):
    """
