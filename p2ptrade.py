@@ -7,7 +7,7 @@ def make_random_id():
     bits = os.urandom(8)
     return bin_to_hex(bits)
 
-class ExchangeOffer:
+class ExchangeOffer: 
     def __init__(self, oid, A, B):
         self.oid = oid or make_random_id()
         self.A = A
