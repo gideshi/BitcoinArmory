@@ -2740,9 +2740,8 @@ uint32_t BlockDataManager_FileRefs::parseEntireBlockchain( string   blkdir,
          }
 	 //	 if (nBlkRead>1000) break; //hach
       }
-      globalCache.openFile(fnum-1, blkfile);
+      // globalCache.openFile(fnum-1, blkfile);
       TIMER_STOP("ScanBlockchain");
-
    }
 
    
@@ -2759,7 +2758,10 @@ uint32_t BlockDataManager_FileRefs::parseEntireBlockchain( string   blkdir,
    allRegAddrScannedUpToBlk_ = topBlk;
    updateRegisteredAddresses(topBlk);
    
-   
+   // Since loading takes so long, there's a good chance that new block data
+   // came in... let's get it.
+   readBlkFileUpdate();
+
    // Return the number of blocks read from blkfile (this includes invalids)
    isInitialized_ = true;
    purgeZeroConfPool();
