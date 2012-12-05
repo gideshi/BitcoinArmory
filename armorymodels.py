@@ -63,7 +63,7 @@ class AllWalletsDispModel(QAbstractTableModel):
             if bal==-1:
                return QVariant('(...)') 
             else:
-               dispStr = coin2str(bal, maxZeros=2)
+               dispStr = coin2strX(wlt.color, bal, maxZeros=2)
                return QVariant(dispStr)
       elif role==Qt.TextAlignmentRole:
          if col in (COL.ID, COL.Name):
@@ -420,7 +420,7 @@ class WalletAddrDispModel(QAbstractTableModel):
                return QVariant()
          if col==COL.Balance: 
             val = self.wlt.getAddrBalance(addr160, 'Full')
-            return QVariant( coin2str(val, maxZeros=2) )
+            return QVariant( coin2strX(self.wlt.color, val, maxZeros=2) )
       elif role==Qt.TextAlignmentRole:
          if col in (COL.Address, COL.Comment):
             return QVariant(int(Qt.AlignLeft | Qt.AlignVCenter))

@@ -740,14 +740,16 @@ class DlgWalletDetails(ArmoryDialog):
       lblSpd  = QRichLabel('<b>Spendable Funds:</b>', doWrap=False); 
       lblUcn  = QRichLabel('<b>Unconfirmed:</b>', doWrap=False); 
 
+      coin_color = self.wlt.color
+
       if not self.main.isOnline:
          totStr = '-'*12
          spdStr = '-'*12
          ucnStr = '-'*12
       else:
-         totStr = '<b><font color="%s">%s</font></b>' % (btccolor,  coin2str(totalFunds))
-         spdStr = '<b><font color="%s">%s</font></b>' % (goodColor, coin2str(spendFunds))
-         ucnStr = '<b><font color="%s">%s</font></b>' % (uncolor,   coin2str(unconfFunds))
+         totStr = '<b><font color="%s">%s</font></b>' % (btccolor,  coin2strX(coin_color, totalFunds))
+         spdStr = '<b><font color="%s">%s</font></b>' % (goodColor, coin2strX(coin_color, spendFunds))
+         ucnStr = '<b><font color="%s">%s</font></b>' % (uncolor,   coin2strX(coin_color, unconfFunds))
 
       lblTotalFunds  = QRichLabel(totStr, doWrap=False)
       lblSpendFunds  = QRichLabel(spdStr, doWrap=False)
@@ -760,10 +762,14 @@ class DlgWalletDetails(ArmoryDialog):
       lblSpd.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
       lblUcn.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
+      if coin_color < 0:
+         unit_name = "BTC"
+      else:
+         unit_name = "units"
 
-      lblBTC1 = QRichLabel('<b><font color="%s">BTC</font></b>'%lblcolor, doWrap=False)
-      lblBTC2 = QRichLabel('<b>BTC</b>', doWrap=False)
-      lblBTC3 = QRichLabel('<b>BTC</b>', doWrap=False)
+      lblBTC1 = QRichLabel('<b><font color="%s">%s</font></b>'% (lblcolor, unit_name), doWrap=False)
+      lblBTC2 = QRichLabel('<b>%s</b>' % unit_name, doWrap=False)
+      lblBTC3 = QRichLabel('<b>%s</b>' % unit_name, doWrap=False)
       ttipTot = createToolTipObject( \
             'Total funds if all current transactions are confirmed.  '
             'Value appears gray when it is the same as your spendable funds.')
@@ -2893,13 +2899,19 @@ class DlgAddressInfo(ArmoryDialog):
             'This is the current <i>spendable</i> balance of this address, '
             'not including zero-confirmation transactions from others.'))
       lbls[-1].append( QRichLabel('<b>Current Balance</b>') )
-      balStr = coin2str(spBalance, maxZeros=1)
+      balStr = coin2strX(self.wlt.color, spBalance, maxZeros=1)
+
+      if self.wlt.color < 0:
+         unit_name = "BTC"
+      else:
+         unit_name = "units"
+
       if spBalance>0:
          goodColor = htmlColor('MoneyPos')
          lbls[-1].append( QRichLabel( \
-            '<font color=' + goodColor + '>' + balStr.strip() + '</font> BTC' ))
+            '<font color=' + goodColor + '>' + balStr.strip() + '</font> ' + unit_name ))
       else:   
-         lbls[-1].append( QRichLabel( balStr.strip() + ' BTC'))
+         lbls[-1].append( QRichLabel( balStr.strip() + ' ' + unit_name))
 
 
       # Number of transactions
@@ -4301,7 +4313,12 @@ def getWalletInfoFrame(wlt):
    # Format balance if necessary
    bal = wlt.getBalance('Spendable')
    if bal==0: dispBal.setText('<font color="red"><b>0.0000</b></font>')
-   else:      dispBal.setText('<font color="green"><b>'+coin2str(bal, maxZeros=1)+'</font></b>')
+   else:      
+      if wlt.color < 0:
+         unit_name = "BTC"
+      else:
+         unit_name = "units"
+      dispBal.setText('<font color="green"><b>'+coin2strX(wlt.color, bal, maxZeros=2)+'</font> '+unit_name+'</b>')
 
    dispBal.setTextFormat(Qt.RichText)
    dispDescr.setWordWrap(True)
@@ -4546,7 +4563,8 @@ class DlgSendBitcoins(ArmoryDialog):
          'You will have the ability to change the donation amount '
          'before finalizing the transaction.')
       self.connect(btnDonate, SIGNAL("clicked()"), self.addDonation)
-      if USE_TESTNET:
+      # disabled donations of colored coins
+      if USE_TESTNET or True:
          btnDonate.setVisible(False)
          ttipDonate.setVisible(False)
 
@@ -4732,7 +4750,7 @@ class DlgSendBitcoins(ArmoryDialog):
          label    = get('label')
          self.addOneRecipient(addr160, amount, message, label)
       
-      elif not self.main==None and loadCount%donateFreq==(donateFreq-1) and \
+      elif False and not self.main==None and loadCount%donateFreq==(donateFreq-1) and \
          not loadCount==lastPestering and not dnaaDonate and \
          wlt.getBalance('Spendable') > 5*ONE_BTC and not USE_TESTNET:
          result = MsgBoxWithDNAA(MSGBOX.Question, 'Please donate!', \
@@ -4868,6 +4886,10 @@ class DlgSendBitcoins(ArmoryDialog):
       COLS = self.COLS
       okayToSend = True
       addrBytes = []
+
+      color = self.wlt.color
+      colored = (color >= 0)
+
       for i in range(len(self.widgetTable)):
          # Verify validity of address strings
          addrStr = str(self.widgetTable[i][COLS.Addr].text()).strip()
@@ -4919,20 +4941,32 @@ class DlgSendBitcoins(ArmoryDialog):
             valueStr = str(self.widgetTable[i][COLS.Btc].text())
             feeStr   = str(self.edtFeeAmt.text())
 
+            """this check is disabled because there is no clear rule like this
+            for colored coins
             if '.' in valueStr and len(valueStr.split('.')[-1])>8:
-               QMessageBox.critical(self, 'Too much precision', \
-                   'Bitcoins can only be '
-                   'specified down to 8 decimal places:  the smallest value '
-                   'that can be sent is  0.0000 0001 BTC', QMessageBox.Ok)
-               return False
+            QMessageBox.critical(self, 'Too much precision', \
+            'Bitcoins can only be '
+            'specified down to 8 decimal places:  the smallest value '
+            'that can be sent is  0.0000 0001 BTC', QMessageBox.Ok)
+            return False"""
          except:
             # TODO: figure out the types of errors we need to deal with, here
             raise
 
          try:
-            value = int(float(valueStr) * ONE_BTC + 0.5)
+            if not colored:
+               unit = ONE_BTC
+            else:
+               colordef = color_definitions[color]
+               unit = int(colordef[1].get('unit', 1))
+
+            value = int(float(valueStr) * unit + 0.5)
             if value==0:
-               continue
+               QMessageBox.critical(self, 'Too small', \
+                                       'The amount you specified '
+                                    'to send to address %d is rounds down to zero satoshi. (%s).' % (i+1,valueStr), QMessageBox.Ok)
+               LOGERROR('Invalid amount specified: %s', valueStr)
+               return False
          except ValueError:
             QMessageBox.critical(self, 'Invalid Value String', \
                 'The amount you specified '
@@ -4960,17 +4994,15 @@ class DlgSendBitcoins(ArmoryDialog):
       self.totalTxSelect_c = 0
       self.notEnoughPayment = False
       self.notEnoughFee = False
-      self.colored = False
 
       def selectUTXOs():
          print ("select UTXOs: %s, %s" % (totalSend, fee))
          self.utxoSelect = []
          self.notEnoughPayment = False
          self.notEnoughFee = False
-         self.colored = (self.wlt.color >= 0)
          if totalSend + fee == 0:
             return
-         if self.colored:
+         if colored:
             # colored coins: try to pay fee with uncolored ones
             utxoSelect_c = []
             utxoSelect_u = []
@@ -5000,11 +5032,11 @@ class DlgSendBitcoins(ArmoryDialog):
       def CheckBalance():
          if self.notEnoughPayment:
             bal = self.wlt.getBalance('Spendable')
-            if self.colored:
+            if colored:
                QMessageBox.critical(self, 'Insufficient Funds', 'You just tried to send '
-                                    '%s colored BTC, but you only have %s colored BTC (spendable) in this wallet!' % \
-                                       (coin2str(totalSend, maxZeros=2).strip(), \
-                                           coin2str(bal, maxZeros=2).strip()), \
+                                    '%s units, but you only have %s units (spendable) in this wallet!' % \
+                                       (coin2strX(color, totalSend, maxZeros=2).strip(), \
+                                           coin2strX(color, bal, maxZeros=2).strip()), \
                                        QMessageBox.Ok)
                
             else:
@@ -5061,9 +5093,6 @@ class DlgSendBitcoins(ArmoryDialog):
             'and probably not your fault.', QMessageBox.Ok)
          return
          
-
-      color = self.wlt.color
-
       ### IF we got here, everything is good to go...
       #   Just need to get a change address and then construct the tx
       totalTxSelect = sum([u.getValue() for u in self.utxoSelect])
@@ -5078,7 +5107,7 @@ class DlgSendBitcoins(ArmoryDialog):
          LOGINFO('Change address behavior: %s', self.selectedBehavior)
          if not self.change160:
             return
-         if self.colored:
+         if colored:
             totalTxSelect_u = totalTxSelect - self.totalTxSelect_c
             totalChange_c = self.totalTxSelect_c - totalSend
             totalChange_u = totalTxSelect_u - fee
@@ -5144,6 +5173,7 @@ class DlgSendBitcoins(ArmoryDialog):
             
    #############################################################################
    def addDonation(self, amt=ONE_BTC):
+      return
       COLS = self.COLS
       lastIsEmpty = True
       for col in (COLS.Addr, COLS.Btc, COLS.Comm):
@@ -5174,7 +5204,7 @@ class DlgSendBitcoins(ArmoryDialog):
          self.makeRecipFrame( len(self.widgetTable)+1 )
 
       if amt:
-         amt = coin2str(amt, maxZeros=2).strip()
+         amt = coin2strX(self.wlt.color, amt, maxZeros=2).strip()
 
       self.widgetTable[-1][self.COLS.Addr].setText(hash160_to_addrStr(addr160))
       self.widgetTable[-1][self.COLS.Addr].setCursorPosition(0)
@@ -5188,6 +5218,7 @@ class DlgSendBitcoins(ArmoryDialog):
 
    #####################################################################
    def setMaximum(self, targWidget):
+      return 
       nRecip = len(self.widgetTable)
       totalOther = 0
       r=0  
@@ -5277,7 +5308,12 @@ class DlgSendBitcoins(ArmoryDialog):
          self.widgetTable[r][-1].setMaximumHeight(self.maxHeight)
          self.widgetTable[r][-1].setAlignment(Qt.AlignLeft)
       
-         self.widgetTable[r].append( QLabel('BTC') )
+         if self.wlt.color < 0:
+            unit_name = "BTC"
+         else:         
+            unit_name = "units of <b>%s</b>" % color_definitions[self.wlt.color][0]
+
+         self.widgetTable[r].append( QLabel(unit_name) )
          self.widgetTable[r][-1].setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
          #self.widgetTable[r].append( QPushButton('MAX') )
@@ -5286,7 +5322,11 @@ class DlgSendBitcoins(ArmoryDialog):
                            #'Fills in the maximum spendable amount minus amounts '
                            #'specified for other recipients and the transaction fee ')
          #self.connect(self.widgetTable[r][-1], SIGNAL('clicked()'),  setMaxFunc)
-         self.widgetTable[r].append( self.createSetMaxButton(self.widgetTable[r][COLS.Btc]) )
+
+         
+         # max button disabled 
+         #        self.widgetTable[r].append( self.createSetMaxButton(self.widgetTable[r][COLS.Btc]) )
+         self.widgetTable[r].append( QLabel(" "))
 
          self.widgetTable[r].append( QLabel('Comment:') )
          self.widgetTable[r].append( QLineEdit() )

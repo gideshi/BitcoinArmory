@@ -514,9 +514,22 @@ LOGINFO('************************************************************')
 
 
 
+def coin2strX(color, nSatoshi, ndec=8, rJust=False, maxZeros=8):
+   if color < 0:
+      unit = ONE_BTC
+   else:
+      cd = color_definitions[color]
+      unit = int(cd[1].get('unit', 1))
+      magn = int(math.ceil(math.log10(unit)))
+      maxZeros = min(magn, maxZeros)
+      ndex = min(magn, ndec)
 
-
+   return coin2strB(unit, nSatoshi, ndec, rJust, maxZeros)
+   
 def coin2str(nSatoshi, ndec=8, rJust=False, maxZeros=8):
+   return coin2strB(ONE_BTC, nSatoshi, ndec, rJust, maxZeros)
+
+def coin2strB(unit, nSatoshi, ndec=8, rJust=False, maxZeros=8):
    """
    Converts a raw value (1e-8 BTC) into a formatted string for display
    
@@ -527,7 +540,7 @@ def coin2str(nSatoshi, ndec=8, rJust=False, maxZeros=8):
 
    """
 
-   nBtc = float(nSatoshi) / float(ONE_BTC)
+   nBtc = float(nSatoshi) / float(unit)
    s = '0.0'
    if   ndec==8:  s = '%0.8f' % (nBtc,)
    elif ndec==7:  s = '%0.7f' % (nBtc,)

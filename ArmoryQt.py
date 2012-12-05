@@ -1380,13 +1380,21 @@ class ArmoryMainWindow(QMainWindow):
          btccolor = htmlColor('DisableFG') if spendFunds==totalFunds else htmlColor('MoneyPos')
          lblcolor = htmlColor('DisableFG') if spendFunds==totalFunds else htmlColor('Foreground')
          goodColor= htmlColor('TextGreen')
-         self.lblTotalFunds.setText( '<b><font color="%s">%s</font></b>' % (btccolor,coin2str(totalFunds)))
-         self.lblTot.setText('<b><font color="%s">Maximum Funds:</font></b>' % lblcolor)
-         self.lblBTC1.setText('<b><font color="%s">BTC</font></b>' % lblcolor)
-         self.lblSpendFunds.setText( '<b><font color=%s>%s</font></b>' % (goodColor, coin2str(spendFunds)))
-         self.lblUnconfFunds.setText('<b><font color="%s">%s</font></b>' % \
-                                             (uncolor, coin2str(unconfFunds)))
 
+         if self.coin_color < 0:
+            unit_name = "BTC"
+         else:
+            unit_name = "units"
+
+         self.lblTotalFunds.setText( '<b><font color="%s">%s</font></b>' % (btccolor, coin2strX(self.coin_color, totalFunds)))
+         self.lblTot.setText('<b><font color="%s">Maximum Funds:</font></b>' % lblcolor)
+         self.lblBTC1.setText('<b><font color="%s">%s</font></b>' % (lblcolor, unit_name))
+         self.lblBTC2.setText('<b>%s</b>' % unit_name)
+         self.lblBTC3.setText('<b>%s</b>' % unit_name)
+         self.lblSpendFunds.setText( '<b><font color=%s>%s</font></b>' % (goodColor, coin2strX(self.coin_color, spendFunds)))
+         self.lblUnconfFunds.setText('<b><font color="%s">%s</font></b>' % \
+                                        (uncolor, coin2strX(self.coin_color, unconfFunds)))
+            
          # Finally, update the ledger table
          self.ledgerTable = self.convertLedgerToTable(self.combinedLedger)
          self.ledgerModel.ledger = self.ledgerTable
@@ -1497,7 +1505,7 @@ class ArmoryMainWindow(QMainWindow):
          row.append(unixTimeToFormatStr(le.getTxTime(), datefmt))
 
          # TxDir (actually just the amt... use the sign of the amt to determine dir)
-         row.append(coin2str(le.getValue(), maxZeros=2))
+         row.append(coin2strX(self.coin_color, le.getValue(), maxZeros=2))
 
          # Wlt Name
          row.append(self.walletMap[wltID].labelName)
@@ -1513,7 +1521,7 @@ class ArmoryMainWindow(QMainWindow):
             row.append(comment)
 
          # Amount
-         row.append(coin2str(amt, maxZeros=2))
+         row.append(coin2strX(self.coin_color, amt, maxZeros=2))
 
          # Is this money mine?
          row.append( determineWalletType(wlt, self)[0]==WLTTYPES.WatchOnly)
@@ -1552,10 +1560,12 @@ class ArmoryMainWindow(QMainWindow):
       self.comboColorSelect.addItem('Uncolored')
       for x in color_definitions:
          self.comboColorSelect.addItem(x[0])
+      self.onColorChange()
 
    def onColorChange(self):
       idx = self.comboColorSelect.currentIndex()
       color = idx - 2
+      self.coin_color = color
       for wltID in self.walletIDList:
          self.walletMap[wltID].color = color
       self.walletListChanged()
