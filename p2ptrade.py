@@ -128,6 +128,20 @@ class ExchangeProposal:
         # TODO: look for transactions of the right color and value in txdp
         return True
         
+    def signMyTranche(self,wallet):
+        tranche = self.my_tranche
+        preSignedInputs = [1 if sig else 0 for sig in self.etransaction.txdp.signatures]
+        wallet.signTxDistProposal(self.etransaction.txdp)
+        postSignedInputs = [1 if sig else 0 for sig in self.etransaction.txdp.signatures]
+        for i in range(len(preSignedInputs)):
+          if postSignedInputs[i] and not preSignedInputs[i]:
+            invalid = True
+            # TODO: Multisig support
+            for a in tranche.txdp.inAddr20Lists:
+              if a[0] == seld.etransaction.txdp.inAddr20Lists[0]:
+                invalid = False
+                break
+            if invalid: raise Exception("Invalid input!")
 
 class ExchangePeerAgent:
     def __init__(self, wallet):
