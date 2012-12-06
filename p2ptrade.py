@@ -7,7 +7,11 @@ def make_random_id():
     bits = os.urandom(8)
     return bin_to_hex(bits)
 
-class ExchangeOffer:
+def colorInd(o): return colortools.find_color_index(o['colorid'])
+
+class ExchangeOffer: 
+    # Offer = "I want to give you A['value'] coins of color A['colorid'] and receive
+    # B['value'] coins of color B['colorid']"
     def __init__(self, oid, A, B):
         self.oid = oid or make_random_id()
         self.A = A
@@ -17,6 +21,13 @@ class ExchangeOffer:
         return {"oid": self.oid,
                 "A": self.A,
                 "B": self.B}
+
+    def matchesOffer(self,other):
+        if colorInd(self.A) != colorInd(other.B) or \
+           colorInd(self.B) != colorInd(other.A): return False
+        if self.A['value'] != other.B['value']: return False
+        if other.A['value'] < self.B['value']: return False
+        return True
 
     @classmethod
     def importTheirs(cls, data):
@@ -111,7 +122,26 @@ class ExchangeProposal:
     def addMyTranche(self, my_tranche):
         self.my_tranche = my_tranche
         self.etransaction.addMyTranche(my_tranche)
+
+    def checkTheirTranche(self):
+        txdp = self.etransaction.getTxDP()
+        # TODO: look for transactions of the right color and value in txdp
+        return True
         
+    def signMyTranche(self,wallet):
+        tranche = self.my_tranche
+        preSignedInputs = [1 if sig else 0 for sig in self.etransaction.txdp.signatures]
+        wallet.signTxDistProposal(self.etransaction.txdp)
+        postSignedInputs = [1 if sig else 0 for sig in self.etransaction.txdp.signatures]
+        for i in range(len(preSignedInputs)):
+          if postSignedInputs[i] and not preSignedInputs[i]:
+            invalid = True
+            # TODO: Multisig support
+            for a in tranche.txdp.inAddr20Lists:
+              if a[0] == seld.etransaction.txdp.inAddr20Lists[0]:
+                invalid = False
+                break
+            if invalid: raise Exception("Invalid input!")
 
 class ExchangePeerAgent:
     def __init__(self, wallet):
@@ -126,11 +156,10 @@ class ExchangePeerAgent:
         offer = ExchangeOffer(orig_offer.oid, orig_offer.A.copy(), orig_offer.B.copy())
         assert my_value == offer.B['value'] # TODO: support for partial fill
         offer.B['address'] = my_address
-        color = colortools.find_color_index(offer.B['colorid'])
-        if not color:
+        acolor, bcolor = colorInd(offer.A), colorInd(offer.B)
+        if not acolor or not bcolor:
             raise Exception("My colorid is not recognized")
-        # TODO: check A's colorid
-        my_tranche = MyTranche.createPayment(self.wallet, color, my_value, offer.A['address'])
+        my_tranche = MyTranche.createPayment(self.wallet, bcolor, my_value, offer.A['address'])
         ep = ExchangeProposal(offer, my_tranche)
         self.eproposals[ep.pid] = ep
         return ep
@@ -152,10 +181,9 @@ class ExchangePeerAgent:
         if not ep.checkTheirTranche():
             raise Exception("Their tranche is erroneous")
         offer = ep.offer
-        color = colortools.find_color_index(offer.A['colorid'])
-        if not color:
+        acolor, bcolor = colorInd(offer.A), colorInd(offer.B)
+        if not acolor or not bcolor:
             raise Exception("My colorid is not recognized")
-        # TODO: check B's colorid
         ep.addMyTranche(MyTranche.createPayment(self.wallet, color, offer.A['value'], offer.B['address']))
         ep.signMyTranche(self.wallet)
         self.eproposals[ep.pid] = ep
