@@ -1671,6 +1671,8 @@ class ArmoryMainWindow(QMainWindow):
 
    #############################################################################
    def addWalletToApplication(self, newWallet, walletIsNew=True):
+      if not isinstance(newWallet, PyBtcWalletCW):
+         newWallet = PyBtcWalletCW(newWallet)
       # Update the maps/dictionaries
       newWltID = newWallet.uniqueIDB58
       self.walletMap[newWltID] = newWallet
@@ -1749,11 +1751,13 @@ class ArmoryMainWindow(QMainWindow):
                                            kdfMaxMem=kdfBytes, \
                                            shortLabel=name, \
                                            longLabel=descr)
+          newWallet = PyBtcWalletCW(newWallet)
       else:
           newWallet = PyBtcWallet().createNewWallet( \
                                            withEncrypt=False, \
                                            shortLabel=name, \
                                            longLabel=descr)
+          newWallet = PyBtcWalletCW(newWallet)
 
 
       TheBDM.registerWallet(newWallet.cppWallet, True) # is new, no blk rescan
@@ -2023,6 +2027,7 @@ class ArmoryMainWindow(QMainWindow):
 
       wlt = PyBtcWallet().readWalletFile(fn, verifyIntegrity=False, \
                                              skipBlockChainScan=True)
+      wlt = PyBtcWalletCW(wlt)
       wltID = wlt.uniqueIDB58
 
       if self.walletMap.has_key(wltID):

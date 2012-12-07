@@ -220,7 +220,7 @@ class DlgNewWallet(ArmoryDialog):
       self.cryptoFrame.setVisible(False)
 
       self.chkUseCrypto  = QCheckBox("Use wallet &encryption")
-      self.chkUseCrypto.setChecked(True)
+      self.chkUseCrypto.setChecked(False) # It's easier that way
       usecryptoTooltip = createToolTipObject(
                                  'Encryption prevents anyone who accesses your computer '
                                  'or wallet file from being able to spend your money, as  '
@@ -3984,6 +3984,7 @@ class DlgRemoveWallet(ArmoryDialog):
                newWltPath = wlt.getWalletPath('WatchOnly')
                wlt.forkOnlineWallet(newWltPath, wlt.labelName, wlt.labelDescr)
                newWlt = PyBtcWallet().readWalletFile(newWltPath)
+               newWlt = PyBtcWalletCW(newWlt)
                newWlt.setBlockchainSyncFlag(BLOCKCHAIN_READONLY)
                newWlt.syncWithBlockchain()
 
