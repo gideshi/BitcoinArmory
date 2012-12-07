@@ -341,7 +341,7 @@ public:
         computeColorMap();
     }
 
-    IdxColorID getTxOColor(const HashString &txhash, uint32_t idx);
+    IdxColorID getTxOColor(BinaryData txhash, uint32_t idx);
 };
 
 

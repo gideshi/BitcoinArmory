@@ -3804,7 +3804,7 @@ ColorMan::ColorMan(BlockDataManager_FileRefs *bdm)
 {
 }
 
-IdxColorID ColorMan::getTxOColor(const HashString &txhash, uint32_t idx)
+IdxColorID ColorMan::getTxOColor(BinaryData txhash, uint32_t idx)
 {
     Tx tx = getBDM().getTxByHash(txhash);
     if (!tx.isInitialized()) return COLOR_UNKNOWN;
