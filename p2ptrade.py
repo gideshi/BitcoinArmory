@@ -10,8 +10,9 @@ def make_random_id():
 def colorInd(o): return colortools.find_color_index(o['colorid'])
 
 class ExchangeOffer: 
-    # Offer = "I want to give you A['value'] coins of color A['colorid'] and receive
-    # B['value'] coins of color B['colorid']"
+    # A = offerer's side, B = replyer's side
+    # ie. offerer says "I want to give you A['value'] coins of color 
+    # A['colorid'] and receive B['value'] coins of color B['colorid']"
     def __init__(self, oid, A, B):
         self.oid = oid or make_random_id()
         self.A = A
@@ -21,13 +22,6 @@ class ExchangeOffer:
         return {"oid": self.oid,
                 "A": self.A,
                 "B": self.B}
-
-    def matchesOffer(self,other):
-        if colorInd(self.A) != colorInd(other.B) or \
-           colorInd(self.B) != colorInd(other.A): return False
-        if self.A['value'] != other.B['value']: return False
-        if other.A['value'] < self.B['value']: return False
-        return True
 
     @classmethod
     def importTheirs(cls, data):
@@ -62,7 +56,6 @@ class TheirETransactionTranche(ETransactionTranche):
     def importTxDP(cls, txdp_ascii):
         self.txdp = PyTxDistProposal()
         self.txdp.unserializeAscii(txpd_ascii)
-
         
 
 def merge_txdps(l, r):
@@ -125,7 +118,13 @@ class ExchangeProposal:
 
     def checkTheirTranche(self):
         txdp = self.etransaction.getTxDP()
-        # TODO: look for transactions of the right color and value in txdp
+        coloredOutputs = colortools.compute_pytx_colors(txdp)
+        colordict = {}
+        for c in coloredOutputs:
+          colordict[c[1]] = colordict.get(c[1],0)+c[0]
+        offer = self.offer
+        if offer.A["value"] < colors[colorInd(offer.A)]: return False
+        if offer.B["value"] > colors[colorInd(offer.B)]: return False
         return True
         
     def signMyTranche(self,wallet):
@@ -151,6 +150,24 @@ class ExchangePeerAgent:
 
     def registerOffer(self, offer):
         self.offers[offer.oid] = offer
+
+    def matchesOffer(self,offer,reply):
+        cOfferA, cOfferB = colorInd(orig.A), colorInd(orig.B)
+        cReplyA, cReplyB = colorInd(other.A), colorInd(other.B)
+        # Are the colors even valid?
+        if !cOfferA or !cOfferB or !cReplyA or !cReplyB: return False
+        # Do the colors match?
+        if cOfferA != cReplyB or cOfferB != cReplyA: return False
+        # A counter-offer MORE favorable to me than what I wanted is great,
+        # LESS favorable is not
+        isOfferMyOffer = offer.oid in self.offers
+        if isOfferMyOffer:
+          if orig.A['value'] != other.B['value']: return False
+          if other.A['value'] < self.B['value']: return False
+        else:
+          if orig.A['value'] < other.B['value']: return False
+          if other.A['value'] != self.B['value']: return False
+        return True
     
     def makeExchangeProposal(self, orig_offer, my_address, my_value):
         offer = ExchangeOffer(orig_offer.oid, orig_offer.A.copy(), orig_offer.B.copy())
@@ -163,32 +180,33 @@ class ExchangePeerAgent:
         ep = ExchangeProposal(offer, my_tranche)
         self.eproposals[ep.pid] = ep
         return ep
-        
-    def acceptExchangeProposal(self, their_ep_data):
-        ep = ExchangeProposal()
-        ep.importTheirs(their_ep_data)
 
+    def dispatchExchangeProposal(self, ep_data):
+        ep = ExchangeProposal()
+        ep.importTheirs(ep_data)
+        if ep.offer.oid in self.offers:
+          self.acceptExchangeProposal(ep)
+        elif ep.offer.pid in self.eproposals:
+          self.updateExchangeProposal(ep)
+        else: 
+          # We have neither an offer nor a proposal matching this ExchangeProposal
+          pass
+        
+    def acceptExchangeProposal(self, ep):
         my_ep = self.eproposals.get([ep.pid], None)
         if my_ep:
             # we have matching ep
             return self.updateExchangeProposal(my_ep, ep)
 
-        matching_offer = self.offers[ep.offer.oid]
-        if not matching_offer:
-            raise Exception("Found no matching order with that ID")
-        if not ep.offer.matchesOffer(matching_offer):
-            raise Exception("Is incongruent with my offer")
+        matching_offer = self.offers[offer.oid]
+        if not self.matchesOffer(offer,matching_offer):
+            raise Exception("Is invalid or incongruent with my offer")
         if not ep.checkTheirTranche():
             raise Exception("Their tranche is erroneous")
-        offer = ep.offer
-        acolor, bcolor = colorInd(offer.A), colorInd(offer.B)
-        if not acolor or not bcolor:
-            raise Exception("My colorid is not recognized")
         ep.addMyTranche(MyTranche.createPayment(self.wallet, color, offer.A['value'], offer.B['address']))
         ep.signMyTranche(self.wallet)
         self.eproposals[ep.pid] = ep
         return ep
 
-    def updateExchangeProposal(self, my_ep, their_ep):
-        
+    def updateExchangeProposal(self, ep):
         ep.signMyTranche(self.wallet)
