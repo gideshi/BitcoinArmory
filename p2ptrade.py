@@ -116,31 +116,37 @@ class ExchangeProposal:
         self.my_tranche = my_tranche
         self.etransaction.addMyTranche(my_tranche)
 
-    def checkTheirTranche(self):
+    # Does their tranche have enough of the color
+    # that I want going to my address?
+    def checkOutputsToMe(self,myaddress,color,value):
         txdp = self.etransaction.getTxDP()
         coloredOutputs = colortools.compute_pytx_colors(txdp)
-        colordict = {}
-        for c in coloredOutputs:
-          colordict[c[1]] = colordict.get(c[1],0)+c[0]
+        sumv = 0
+        for out,col in zip(txdp.pytxObj.outputs,coloredOutputs):
+          if TxOutScriptExtractAddr160(out.binScript) == myaddress:
+            if col[1] == color:
+              sumv += out.value
         offer = self.offer
-        if offer.A["value"] < colors[colorInd(offer.A)]: return False
-        if offer.B["value"] > colors[colorInd(offer.B)]: return False
+        return sumv >= value
+
+    # Are all of the inputs in my tranche?
+    def checkInputsFromMe(self,wallet):
+        txdp = self.etransaction.getTxDP()
+        tranche = self.my_tranche
+        for i in txdp.pytxObj.inputs:
+          addr160 = TxInScriptExtractAddr160IfAvail(i)
+          if addr160 and wallet.hasAddr(addr160):
+            invalid = True
+            for addr in tranche.txdp.inAddr20Lists:
+              if addr[0] == self.etransaction.txdp.inAddr20Lists[0]:
+                invalid = False
+                break
+            if invalid: return False
         return True
         
     def signMyTranche(self,wallet):
-        tranche = self.my_tranche
-        preSignedInputs = [1 if sig else 0 for sig in self.etransaction.txdp.signatures]
-        wallet.signTxDistProposal(self.etransaction.txdp)
-        postSignedInputs = [1 if sig else 0 for sig in self.etransaction.txdp.signatures]
-        for i in range(len(preSignedInputs)):
-          if postSignedInputs[i] and not preSignedInputs[i]:
-            invalid = True
-            # TODO: Multisig support
-            for a in tranche.txdp.inAddr20Lists:
-              if a[0] == seld.etransaction.txdp.inAddr20Lists[0]:
-                invalid = False
-                break
-            if invalid: raise Exception("Invalid input!")
+        if self.checkInputsFromMe(wallet):
+           wallet.signTxDistProposal(self.extransaction.txdp)
 
 class ExchangePeerAgent:
     def __init__(self, wallet):
@@ -152,6 +158,10 @@ class ExchangePeerAgent:
         self.offers[offer.oid] = offer
 
     def matchesOffer(self,offer,reply):
+        # Do the addresses match?
+        if offer.A['address'] != reply.A['address']: return False
+        if offer.B['address'] != reply.B['address']: return False
+        # Color checking
         cOfferA, cOfferB = colorInd(orig.A), colorInd(orig.B)
         cReplyA, cReplyB = colorInd(other.A), colorInd(other.B)
         # Are the colors even valid?
@@ -181,32 +191,43 @@ class ExchangePeerAgent:
         self.eproposals[ep.pid] = ep
         return ep
 
+    def publishTx(self,txdp):
+        # TODO: implement
+        print txdp.serialize()
+
     def dispatchExchangeProposal(self, ep_data):
         ep = ExchangeProposal()
         ep.importTheirs(ep_data)
         if ep.offer.oid in self.offers:
-          self.acceptExchangeProposal(ep)
+          signedEp = self.acceptExchangeProposal(ep)
         elif ep.offer.pid in self.eproposals:
-          self.updateExchangeProposal(ep)
+          signedEp = self.updateExchangeProposal(ep)
         else: 
           # We have neither an offer nor a proposal matching this ExchangeProposal
-          pass
+          return
+        txdp = signedEp.etransaction.getTxDP()
+        if txdp.checkTxHasEnoughSignatures():
+          self.publishTx(txdp)
+        else:
+          raise Exception("Transaction was not fully signed for some reason")
         
     def acceptExchangeProposal(self, ep):
-        my_ep = self.eproposals.get([ep.pid], None)
-        if my_ep:
-            # we have matching ep
-            return self.updateExchangeProposal(my_ep, ep)
-
+        offer = ep.offer
         matching_offer = self.offers[offer.oid]
         if not self.matchesOffer(offer,matching_offer):
             raise Exception("Is invalid or incongruent with my offer")
-        if not ep.checkTheirTranche():
-            raise Exception("Their tranche is erroneous")
-        ep.addMyTranche(MyTranche.createPayment(self.wallet, color, offer.A['value'], offer.B['address']))
+        if not ep.checkOutputsToMe(offer.A['address'],offer.B['color'],offer.B['value']):
+            raise Exception("Offer does not contain enough coins of the color that I want for me")
+        ep.addMyTranche(MyTranche.createPayment(self.wallet, offer.A['color'], offer.A['value'], offer.B['address']))
         ep.signMyTranche(self.wallet)
         self.eproposals[ep.pid] = ep
         return ep
 
     def updateExchangeProposal(self, ep):
+        my_ep = self.eproposals.get([ep.pid], None)
+        offer = my_ep.offer
+        ep.my_tranche = my_ep.my_tranche
+        if not ep.checkOutputsToMe(offer.B['address'],offer.A['color'],offer.A['value']): 
+            raise Exception("Offer does not contain enough coins of the color that I want for me")
         ep.signMyTranche(self.wallet)
+        return ep
