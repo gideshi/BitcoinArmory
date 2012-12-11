@@ -322,11 +322,11 @@ IdxColorID TxIOPair::getColor()
 {
     if (colorCache_ != COLOR_UNKNOWN)
         return colorCache_;
-    if (hasTxOutInMain())
-    {
-        ColorMan& colorMan = BlockDataManager_FileRefs::GetInstance().getColorMan();
+    ColorMan& colorMan = BlockDataManager_FileRefs::GetInstance().getColorMan();
+    if (hasTxOut())
         colorCache_ = colorMan.getTxOColor(txPtrOfOutput_->getThisHash(), indexOfOutput_);
-    }
+    else if (hasTxOutZC())
+	colorCache_ = colorMan.getTxOColor(txOfOutputZC_->getThisHash(), indexOfOutputZC_);
     return colorCache_;
 }
 
@@ -3810,12 +3810,14 @@ IdxColorID ColorMan::getTxOColor(BinaryData txhash, uint32_t idx)
     if (!tx.isInitialized()) return COLOR_UNKNOWN;
     uint32_t bh = tx.getBlockHeight();
 
-    if (bh == UINT32_MAX) 
-        // we won't color transactions which are not yet in blocks.
-        return COLOR_UNKNOWN; 
-    
-    if (bh > lastScannedBlock_)
-        scanColoredTransactionsUpTo(bh);
+    if (bh == UINT32_MAX)
+    {
+	if (!scanZCTransactionsUpToTH(txhash)) 
+	    return COLOR_UNKNOWN;
+    }
+    else 
+	scanTransactionsUpToBH(bh);
+
     return getTxOColorRaw(txhash, idx);
 }
      
@@ -3826,6 +3828,62 @@ IdxColorID ColorMan::getTxOColorRaw(const HashString &txhash, uint32_t idx)
         return COLOR_UNCOLORED;
     else
         return it->second[idx];
+}
+
+class ZCOrphanTxErr {};
+
+void ColorMan::getZCTransactionDependencies(const HashString &txhash, list<Tx> &txList, set<HashString> &alreadyVisited)
+{
+    if (alreadyVisited.find(txhash) != alreadyVisited.end())
+	return;
+
+    alreadyVisited.insert(txhash);
+
+    if (coloredTransactions_.find(txhash) != coloredTransactions_.end())
+	return;
+
+    Tx tx = getBDM().getTxByHash(txhash);
+
+    if (!tx.isInitialized())
+	throw ZCOrphanTxErr();
+
+    uint32_t numInputs = tx.getNumTxIn();
+
+    if (tx.getBlockHeight() != UINT32_MAX)
+	return;
+   
+    for (int i = 0; i < numInputs; ++i)
+    {
+        OutPoint op = tx.getTxIn(i).getOutPoint();
+        if (op.getTxHashRef() == BtcUtils::EmptyHash_)
+	    return; // is coin base
+	getZCTransactionDependencies(op.getTxHash(), txList, alreadyVisited);
+    }
+
+    txList.push_back(tx);
+}
+
+
+bool ColorMan::scanZCTransactionsUpToTH(const HashString &txhash)
+{
+    cout << "scanZCTransactionsUpToTH: " << txhash.toHexStr() << endl;
+    scanTransactionsUpToBH(getBDM().getTopBlockHeight());
+    set<HashString> alreadyVisited;
+    list<Tx> txList;
+    try 
+    {
+	getZCTransactionDependencies(txhash, txList, alreadyVisited);
+    }
+    catch (ZCOrphanTxErr)
+    {
+	cout << "ZCOrphanTxErr: " << txhash.toHexStr() << endl;
+	return false;
+    }
+
+    for (list<Tx>::iterator it = txList.begin(); it != txList.end(); ++it)
+	if (!computeTxColors(*it)) return false;
+
+    return true;
 }
 
 struct TxEltColor
@@ -3914,7 +3972,9 @@ bool ColorMan::computeTxColors(Tx& tx)
 	}
         
         inputs.push_back(TxEltColor(amount, color));
-        outstandingColoredOutpoints_.erase(op);
+	//// we do not erase outstandingColoredOutpoints_ because we'll need them again in case of reorg
+	//// so we'll keep all colored outpoints rather than only outstanding ones
+        // outstandingColoredOutpoints_.erase(op);
     }
     
     if (!isCoinBaseTx)
@@ -3949,7 +4009,7 @@ bool ColorMan::computeTxColors(Tx& tx)
     return true;
 }
 
-void ColorMan::scanColoredTransactionsAt(uint32_t blockHeight)
+void ColorMan::scanTransactionsAtBH(uint32_t blockHeight)
 {
     lastScannedBlock_ = blockHeight;
 
@@ -3992,16 +4052,15 @@ void ColorMan::scanColoredTransactionsAt(uint32_t blockHeight)
 	    if (!colored && (colorIssueMap_.count(op)))
 		colored = true;
 	}
-            
 
         if (colored) computeTxColors(tx);
     }
 }
 
-void ColorMan::scanColoredTransactionsUpTo(uint32_t blockHeight)
+void ColorMan::scanTransactionsUpToBH(uint32_t blockHeight)
 {
     for (uint32_t i = lastScannedBlock_ + 1; i <= blockHeight; ++i)
-        scanColoredTransactionsAt(i);
+        scanTransactionsAtBH(i);
 }
 
 void ColorMan::computeColorMap()

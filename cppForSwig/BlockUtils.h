@@ -324,8 +324,11 @@ private:
 
     void computeColorMap();
 
-    void scanColoredTransactionsAt(uint32_t blockHeight);
-    void scanColoredTransactionsUpTo(uint32_t blockHeight);
+    void scanTransactionsAtBH(uint32_t blockHeight);
+    void scanTransactionsUpToBH(uint32_t blockHeight);
+
+    void getZCTransactionDependencies(const HashString &txhash, list<Tx> &txList, set<HashString> &alreadyVisited);
+    bool scanZCTransactionsUpToTH(const HashString &txhash);
     
     bool computeTxColors(Tx& tx);
 
