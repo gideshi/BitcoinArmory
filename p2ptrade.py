@@ -191,25 +191,16 @@ class ExchangePeerAgent:
         self.eproposals[ep.pid] = ep
         return ep
 
-    def publishTx(self,txdp):
-        # TODO: implement
-        print txdp.serialize()
-
     def dispatchExchangeProposal(self, ep_data):
         ep = ExchangeProposal()
         ep.importTheirs(ep_data)
         if ep.offer.oid in self.offers:
-          signedEp = self.acceptExchangeProposal(ep)
+          return self.acceptExchangeProposal(ep)
         elif ep.offer.pid in self.eproposals:
-          signedEp = self.updateExchangeProposal(ep)
+          return self.updateExchangeProposal(ep)
         else: 
           # We have neither an offer nor a proposal matching this ExchangeProposal
-          return
-        txdp = signedEp.etransaction.getTxDP()
-        if txdp.checkTxHasEnoughSignatures():
-          self.publishTx(txdp)
-        else:
-          raise Exception("Transaction was not fully signed for some reason")
+          return None
         
     def acceptExchangeProposal(self, ep):
         offer = ep.offer
@@ -230,4 +221,6 @@ class ExchangePeerAgent:
         if not ep.checkOutputsToMe(offer.B['address'],offer.A['color'],offer.A['value']): 
             raise Exception("Offer does not contain enough coins of the color that I want for me")
         ep.signMyTranche(self.wallet)
+        if !(ep.etransaction.getTxDP().checkTxHasEnoughSignatures()):
+            raise Exception("Not all inputs are signed for some reason")
         return ep
