@@ -3839,6 +3839,9 @@ void ColorMan::getZCTransactionDependencies(const HashString &txhash, list<Tx> &
 
     alreadyVisited.insert(txhash);
 
+    if (scannedZCTransactions_.find(txhash) != scannedZCTransactions_.end())
+	return;
+
     if (coloredTransactions_.find(txhash) != coloredTransactions_.end())
 	return;
 
@@ -3866,6 +3869,9 @@ void ColorMan::getZCTransactionDependencies(const HashString &txhash, list<Tx> &
 
 bool ColorMan::scanZCTransactionsUpToTH(const HashString &txhash)
 {
+    if (scannedZCTransactions_.find(txhash) != scannedZCTransactions_.end())
+	return true; // already scanned
+
     cout << "scanZCTransactionsUpToTH: " << txhash.toHexStr() << endl;
     scanTransactionsUpToBH(getBDM().getTopBlockHeight());
     set<HashString> alreadyVisited;
@@ -3882,6 +3888,12 @@ bool ColorMan::scanZCTransactionsUpToTH(const HashString &txhash)
 
     for (list<Tx>::iterator it = txList.begin(); it != txList.end(); ++it)
 	if (!computeTxColors(*it)) return false;
+
+    if (scannedZCTransactions_.size() > 100)
+	// purge cache if too large
+	scannedZCTransactions_.clear(); 
+
+    scannedZCTransactions_.insert(txhash);
 
     return true;
 }

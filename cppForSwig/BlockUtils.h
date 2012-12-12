@@ -322,6 +322,9 @@ private:
     set<OutPoint> outstandingColoredOutpoints_;
     map<HashString, TxColors> coloredTransactions_;
 
+    // cache of scanned ZC transactions for speedup
+    set<HashString> scannedZCTransactions_;
+
     void computeColorMap();
 
     void scanTransactionsAtBH(uint32_t blockHeight);
