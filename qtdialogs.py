@@ -4274,11 +4274,17 @@ class DlgWalletSelect(ArmoryDialog):
          return
       
       bal = wlt.getBalance('Spendable')
-      balStr = coin2str(wlt.getBalance('Spendable'), maxZeros=1)
-      if bal<=self.balAtLeast:
-         self.dispBal.setText('<font color="red"><b>%s</b></font>' % balStr)
+      balStr = coin2strX(wlt.color, wlt.getBalance('Spendable'), maxZeros=1)
+
+      if wlt.color < 0:
+         unit_name = "BTC"
       else:
-         self.dispBal.setText('<b>'+balStr+'</b>')
+         unit_name = "units"
+
+      if bal<=self.balAtLeast:
+         self.dispBal.setText('<font color="red"><b>%s %s</b></font>' % (balStr, unit_name))
+      else:
+         self.dispBal.setText('<b>%s %s</b>' % (balStr, unit_name))
 
 
    def dblclick(self, *args):
@@ -4461,6 +4467,19 @@ class DlgSendBitcoins(ArmoryDialog):
    def __init__(self, wlt, parent=None, main=None, prefill=None):
       super(DlgSendBitcoins, self).__init__(parent, main)
       self.maxHeight = tightSizeNChar(GETFONT('var'), 1)[1]+8
+
+      if wlt.color == -2:
+         layout = QVBoxLayout()
+         self.setLayout(layout)
+         msg = QLabel("Cannot send coins of all colors together. <br/>"
+                      "This is dangerous: value of your coins will be lost.<br/>"
+                      "If you really want to scrap your"
+                      "colored coins,<br/> delete color definitions and then send as uncolored.")
+         layout.addWidget(msg)
+         btn = QPushButton('Close')
+         layout.addWidget(btn)
+         self.connect(btn, SIGNAL('clicked()'), self, SLOT('reject()'))
+         return
 
       self.wlt    = wlt  
       self.wltID  = wlt.uniqueIDB58

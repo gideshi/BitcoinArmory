@@ -1560,6 +1560,7 @@ class ArmoryMainWindow(QMainWindow):
       self.comboColorSelect.addItem('Uncolored')
       for x in color_definitions:
          self.comboColorSelect.addItem(x[0])
+      self.comboColorSelect.setCurrentIndex(1) # default to uncolored
       self.onColorChange()
 
    def onColorChange(self):
