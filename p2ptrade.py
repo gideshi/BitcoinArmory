@@ -133,12 +133,12 @@ class ExchangeProposal:
     def checkInputsFromMe(self,wallet):
         txdp = self.etransaction.getTxDP()
         tranche = self.my_tranche
-        for i in txdp.pytxObj.inputs:
-          addr160 = TxInScriptExtractAddr160IfAvail(i)
+        for inp in txdp.pytxObj.inputs:
+          addr160 = TxInScriptExtractAddr160IfAvail(inp)
           if addr160 and wallet.hasAddr(addr160):
             invalid = True
-            for addr in tranche.txdp.inAddr20Lists:
-              if addr[0] == self.etransaction.txdp.inAddr20Lists[0]:
+            for goodInp in tranche.txdp.pytxObj.inputs:
+              if inp.outpoint.txHash == goodInp.outpoint.txHash:
                 invalid = False
                 break
             if invalid: return False
