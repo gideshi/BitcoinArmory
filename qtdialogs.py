@@ -5028,14 +5028,14 @@ class DlgSendBitcoins(ArmoryDialog):
             utxoSelect_u = []
             if totalSend > 0:
                self.utxoList_c = self.wlt.getTxOutList('Spendable')
-               utxoSelect_c = PySelectCoins(self.utxoList_c, totalSend, 0)
+               utxoSelect_c = PySelectCoins(self.utxoList_c, totalSend, 0) if self.utxoList_c else []
                self.totalTxSelect_c = sum([u.getValue() for u in utxoSelect_c])
                if not utxoSelect_c:
                   self.notEnoughPayment = True
                   return
             if fee > 0:
                self.utxoList_u = self.wlt.getTxOutListX(-1, 'Spendable')
-               utxoSelect_u = PySelectCoins(self.utxoList_u, 0, fee)
+               utxoSelect_u = PySelectCoins(self.utxoList_u, 0, fee) if self.utxoList_u else []
                if not utxoSelect_u:
                   self.notEnoughFee = True
                   return
@@ -5067,6 +5067,7 @@ class DlgSendBitcoins(ArmoryDialog):
                                        QMessageBox.Ok)
             return False
          if self.notEnoughFee:
+            bal = self.wlt.getBalanceX(-1, 'Spendable')
             QMessageBox.critical(self, 'Insufficient Funds', 'You need %s BTC for a transaction fee,'
                                  ' but you only have %s BTC (spendable) in this wallet!' % \
                                     (coin2str(fee, maxZeros=2).strip(), \
