@@ -138,9 +138,10 @@ class ExchangeProposal:
           if addr160 and wallet.hasAddr(addr160):
             invalid = True
             for goodInp in tranche.txdp.pytxObj.inputs:
-              if inp.outpoint.txHash == goodInp.outpoint.txHash:
-                invalid = False
-                break
+              if inp.outpoint.txHash == goodInp.outpoint.txHash and \
+                inp.outpoint.txOutIndex == goodInp.outpoint.txOutIndex:
+                  invalid = False
+                  break
             if invalid: return False
         return True
         
