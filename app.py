@@ -1,8 +1,8 @@
 
 import web, json
 import time
-import random
 
+from p2ptrade import *
 
 urls = ('/messages', 'jsonapi')
 
@@ -24,23 +24,25 @@ class TextfileDatabaseHandler():
     def listkeys(self):
         return self.data.keys()
     def put(self,key,val,save=True):
-        self.data[key]=val
+        self.data[str(key)]=val
         if save: self.save()
 
 db = TextfileDatabaseHandler('db.txt')
 
 def serialize(obj):
-    # Should convert object to string representation
-    return obj
+    return json.dumps(obj.export())
 
 def deserialize(data):
-    # Should convert string representation to object
-    return data
+    d = json.loads(data)
+    if "oid" in d:
+      return ExchangeOffer.importTheirs(d)
+    elif pid in d:
+      return ExchangeProposal.importTheirs(d)
+    raise Exception("Unknown data format")
 
 class jsonapi:
     def GET(self):
         id = web.input(id=None).id
-        print id
         if id is not None: 
             data = db.get(id) or []
         else:
@@ -55,8 +57,9 @@ class jsonapi:
             except:
               try: id = str(obj.offer.oid)
               except: id = "0"
-            db.put(id,(db.get(id) or '[]') + \
-                [{'id':id,'timestamp':int(time.time()),'content':data}])
+            existing = db.get(id) or []
+            new = [{'id':id,'timestamp':int(time.time()),'content':data}]
+            db.put(id,existing + new)
             return 'Success'
         except:
             return 'Failure'

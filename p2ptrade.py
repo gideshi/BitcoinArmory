@@ -26,7 +26,7 @@ class ExchangeOffer:
     @classmethod
     def importTheirs(cls, data):
         # TODO: verification
-        return ExchangeOffer(data.oid, data["A"], data["B"])
+        return ExchangeOffer(data["oid"], data["A"], data["B"])
 
 class MyTranche(object):
     @classmethod
@@ -51,11 +51,11 @@ class MyTranche(object):
         txdp.createFromTxOutSelection(p.utxoSelect, p.recipientPairs)
         return txdp
 
-class TheirETransactionTranche(ETransactionTranche):
-    @classmethod
-    def importTxDP(cls, txdp_ascii):
-        self.txdp = PyTxDistProposal()
-        self.txdp.unserializeAscii(txpd_ascii)
+#class TheirETransactionTranche(ETransactionTranche):
+#    @classmethod
+#    def importTxDP(cls, txdp_ascii):
+#        self.txdp = PyTxDistProposal()
+#        self.txdp.unserializeAscii(txpd_ascii)
         
 
 def merge_txdps(l, r):
@@ -166,7 +166,7 @@ class ExchangePeerAgent:
         cOfferA, cOfferB = colorInd(orig.A), colorInd(orig.B)
         cReplyA, cReplyB = colorInd(other.A), colorInd(other.B)
         # Are the colors even valid?
-        if !cOfferA or !cOfferB or !cReplyA or !cReplyB: return False
+        if not (cOfferA and cOfferB and cReplyA and cReplyB): return False
         # Do the colors match?
         if cOfferA != cReplyB or cOfferB != cReplyA: return False
         # A counter-offer MORE favorable to me than what I wanted is great,
@@ -222,6 +222,6 @@ class ExchangePeerAgent:
         if not ep.checkOutputsToMe(offer.B['address'],offer.A['color'],offer.A['value']): 
             raise Exception("Offer does not contain enough coins of the color that I want for me")
         ep.signMyTranche(self.wallet)
-        if !(ep.etransaction.getTxDP().checkTxHasEnoughSignatures()):
+        if not (ep.etransaction.getTxDP().checkTxHasEnoughSignatures()):
             raise Exception("Not all inputs are signed for some reason")
         return ep
