@@ -29,17 +29,6 @@ class TextfileDatabaseHandler():
 
 db = TextfileDatabaseHandler('db.txt')
 
-def serialize(obj):
-    return json.dumps(obj.export())
-
-def deserialize(data):
-    d = json.loads(data)
-    if "oid" in d:
-      return ExchangeOffer.importTheirs(d)
-    elif pid in d:
-      return ExchangeProposal.importTheirs(d)
-    raise Exception("Unknown data format")
-
 class jsonapi:
     def GET(self):
         id = web.input(id=None).id
@@ -52,13 +41,13 @@ class jsonapi:
     def POST(self):
         data = web.data()
         try:
-            obj = deserialize(data)
-            try: id = str(obj.oid)
+            obj = json.loads(data)
+            try: id = str(obj["oid"])
             except:
-              try: id = str(obj.offer.oid)
+              try: id = str(obj["pid"])
               except: id = "0"
             existing = db.get(id) or []
-            new = [{'id':id,'timestamp':int(time.time()),'content':data}]
+            new = [{'id':id,'timestamp':int(time.time()),'content':obj}]
             db.put(id,existing + new)
             return 'Success'
         except:
