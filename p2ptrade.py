@@ -157,6 +157,7 @@ class ExchangePeerAgent:
         self.wallet = wallet
         self.eproposals = dict()
         self.lastpoll = 0
+        self.pollingloop()
 
     def registerOffer(self, offer):
         self.offers[offer.oid] = offer
