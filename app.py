@@ -32,10 +32,10 @@ db = TextfileDatabaseHandler('db.txt')
 class jsonapi:
     def GET(self):
         id = web.input(id=None).id
-        from_timestamp = int(web.input(from_timestamp=0).from_timestamp)
+        from_timestamp = int(web.input(from_timestamp=-1).from_timestamp)
         from_serial = int(web.input(from_serial=-1).from_serial)
         data = db.get('messages') or []
-        maxnum = 25 if from_timestamp == 0 and from_serial == -1 else 9999
+        maxnum = 25 if from_timestamp == -1 and from_serial == -1 else 9999
         def filterf(x):
           if id is not None and x.get('id') != id: return False
           if x.get('timestamp',0) < from_timestamp: return False
@@ -47,13 +47,17 @@ class jsonapi:
     def POST(self):
         data = web.data()
         try:
+            print data
             obj = json.loads(data)
             try: id = str(obj["oid"])
             except:
               try: id = str(obj["offer"]["oid"])
               except: id = "0"
+            print 0
             serial = db.get('last_serial') or 0
+            print 1
             existing = db.get('messages') or []
+            print 2
             new = [{'id':id,'timestamp':int(time.time()),'serial':serial+1,'content':obj}]
             db.put('last_serial',serial+1,False)
             db.put('messages',existing + new)
