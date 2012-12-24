@@ -32,10 +32,15 @@ db = TextfileDatabaseHandler('db.txt')
 class jsonapi:
     def GET(self):
         id = web.input(id=None).id
-        if id is not None: 
-            data = db.get(id) or []
-        else:
-            data = reduce(lambda x,y:x+y, [[]]+[db.get(k) for k in db.listkeys()])
+        from_timestamp = int(web.input(from_timestamp=0).from_timestamp)
+        from_serial = int(web.input(from_serial=0).from_serial)
+        data = db.get('messages') or []
+        def filterf(x):
+          if id is not None and x.get('id') != id: return False
+          if x.get('timestamp',0) < from_timestamp: return False
+          if x.get('serial',0) < from_serial: return False
+          return True
+        data = filter(filterf,data)
         return json.dumps(sorted(data,key=lambda x:-x['timestamp'])[:25])
         
     def POST(self):
@@ -44,11 +49,13 @@ class jsonapi:
             obj = json.loads(data)
             try: id = str(obj["oid"])
             except:
-              try: id = str(obj["pid"])
+              try: id = str(obj["offer"]["oid"])
               except: id = "0"
-            existing = db.get(id) or []
-            new = [{'id':id,'timestamp':int(time.time()),'content':obj}]
-            db.put(id,existing + new)
+            serial = db.get('last_serial') or 0
+            existing = db.get('messages') or []
+            new = [{'id':id,'timestamp':int(time.time()),'serial':serial+1,'content':obj}]
+            db.put('last_serial',serial+1,False)
+            db.put('messages',existing + new)
             return 'Success'
         except:
             return 'Failure'
