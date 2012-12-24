@@ -1,8 +1,5 @@
 from armoryengine import *
-
-"""
-autotrade.register(MyInterpreter.context, MyInterpreter.context.walletMap['2CuYKVHwd'], '1FYXko2KSebdiTVpX53mQF14iK7SjjUnPk', '1Es9rUF3pUoLYnChf3bdH9AXsTRETqKQJq', '1FTvznygZdcxoKRs1c3ToA5fnN5S16KS6v', 0.5, 100)
-"""
+from collections import defaultdict
 
 def findMatchingAddr(utxo):
     txhash = utxo.getTxHash()
@@ -10,63 +7,133 @@ def findMatchingAddr(utxo):
     txin = tx.getTxIn(0)
     return TheBDM.getSenderAddr20(txin)
 
-def register(main, wallet, in_addr, accum_addr, out_addr, rate, limit):
-    in_addr160 = addrStr_to_hash160(in_addr)
-    out_addr160 = addrStr_to_hash160(out_addr)
-    accum_addr160 = addrStr_to_hash160(accum_addr)
-    color = wallet.color
-    if not wallet.hasAddr(in_addr160):
-        raise Exception("No in_addr in wallet")
-    if not wallet.hasAddr(out_addr160):
-        raise Exception("No out_addr in wallet")
 
-    def check_and_trade():
-        in_utxoList = wallet.getAddrTxOutListX(-1, in_addr160, 'Spendable')
+
+class AutoTrade(object):
+    def __init__(self, main, wallet):
+        self.main = main
+        self.wallet = wallet
+        
+    def initAddresses(self, in_addr, accum_addr, out_addr):
+        self.in_addr160 = addrStr_to_hash160(in_addr)
+        self.out_addr160 = addrStr_to_hash160(out_addr)
+        self.accum_addr160 = addrStr_to_hash160(accum_addr)
+        if not self.wallet.hasAddr(self.in_addr160):
+            raise Exception("No in_addr in wallet")
+        if not self.wallet.hasAddr(self.out_addr160):
+            raise Exception("No out_addr in wallet")
+
+    def initConversion(self, in_color, out_color, rate):
+        self.in_color = in_color
+        self.out_color = out_color
+        self.rate = rate
+
+    def register(self):
+        def ct():
+            self.check_and_trade()
+        main.extraHeartbeatFunctions.append(ct)
+
+    def check_and_trade(self):
+        in_utxoList = self.wallet.getAddrTxOutListX(self.in_color, self.in_addr160, 'Spendable')
         if len(in_utxoList) > 0:
-            color_recipients = []
-            totalValue = 0
-            totalCValue = 0
-            for utxo in in_utxoList:
-                value = utxo.getValue()
-                cvalue = int(value * rate)
-                addr = findMatchingAddr(utxo)
-                if addr:
-                    totalValue += value
-                    totalCValue += cvalue
-                    color_recipients.append([addr, cvalue])
+            self.process_incoming_payments(in_utxoList)
 
-            print ("autotrade: got %s inputs, %s BTC, going to send %s colored coins" % \
-                       (len(in_utxoList), totalValue, totalCValue))
+    def want_payment(self, utxo, addr, value):
+        # ignore pay-to-self
+        return not self.wallet.hasAddr(addr)
 
-            my_utxoList = wallet.getAddrTxOutListX(color, out_addr160, 'Spendable')
-            my_utxoSelect = PySelectCoins(my_utxoList, totalCValue, 0)
-            if not my_utxoSelect:
-                print "Not enough colored coins, aborting"
-                return
+    def aggregate_incoming_payments(self, in_utxoList):
+        addr_invalue = defaultdict(int)
+        addr_utxo = defaultdict(list)
+        addr_outvalue = dict()
+        for utxo in in_utxoList:
+            addr = findMatchingAddr(utxo)
+            value = utxo.getValue()
+            if self.want_payment(utxo, addr, value):
+                addr_invalue[addr] += value
+                utxo_used.append(utxo)
+        for addr, value in addr_invalue.iteritems():
+            outvalue = int(value * self.rate)
+            if outvalue == 0:
+                # can't be used
+                del addr_utxo[addr]
+                del addr_invalue[addr]
+            else:
+                addr_outvalue[addr] = outvalue
+        return addr_invalue, addr_utxo, addr_outvalue
 
-            all_utxos = my_utxoSelect[:]
-            for utxo in in_utxoList:
-                all_utxos.append(utxo) 
+    def make_in_tranche(self, addr_utxo, fee = 0):
+        tranche_utxos = []
+        total_invalue = 0
+        for utxo_list in addr_utxo.values():
+            tranche_utxos += utxo_list
+            total_invalue += sum([u.getValue() for u in utxo_list])
+        return (tranche_utxos, [[self.accum_addr160, (total_invalue - fee)]])
 
-            fee = calcMinSuggestedFees(all_utxos, totalValue + totalCValue, 0)[1]
-            print ("Fee required: %s" % (fee,))
-            if fee > totalValue:
-                print "Uncolored coins received less than fee required, aborting"
-                return
-            total_colored = sum([u.getValue() for u in my_utxoSelect])
-            colored_change = total_colored - totalCValue
-            if colored_change > 0:
-                color_recipients.append([out_addr160, colored_change])
-            print ("colored coin change: %s" % (colored_change,))
-            recipValuePairs = color_recipients + [[accum_addr160, (totalValue - fee)]]
+    def make_out_tranche(self, addr_outvalue, fee = 0):
+        recip = []
+        total_outvalue = 0
+        for addr, outvalue in addr_outvalue.iteritems():
+            total_outvalue += outvalue
+            recip.append([addr, outvalue])
 
-            txdp = PyTxDistProposal()
-            txdp.createFromTxOutSelection(all_utxos, recipValuePairs)
-            txdp = wallet.signTxDistProposal(txdp)
-            finalTx = txdp.prepareFinalTx()
-            main.broadcastTransaction(finalTx)
+        out_utxoList = self.wallet.getAddrTxOutListX(self.out_color, self.out_addr160, 'Spendable')
+        out_utxoSelect = PySelectCoins(my_utxoList, total_outvalue, fee) if out_utxoList else None
+        if not out_utxoSelect:
+            raise Exception, "Not enough coins for output, aborting"
+        utxo_value = sum([u.getValue() for u in out_utxoSelect])
+        assert utxo_value >= total_outvalue + fee
+        out_change = utxo_value - total_outvalue - fee
+        if out_change > 0:
+            recip.append([self.out_addr160, out_change])
+        return (out_utxoSelect, recip, out_utxoList)
+        
+    def combine_tranches(self, left, right):
+        return (left[0] + right[0], left[1] + right[1])
+
+    def make_transaction(self, colored_tgen, uncolored_tgen):
+        ctranche = colored_tgen()
+        fee = MIN_TX_FEE
+        while 1:
+            utranche = uncolored_tgen(fee)
+            wholetx = self.combine_tranches(ctranche, utranche)
+            total_value = sum([u.getValue() for u in wholetx[0]])
+            want_fee = calcMinSuggestedFees(wholetx, total_value, fee)[1]
+            if fee <= want_fee:
+                break
+            else:
+                fee = want_fee
+        return wholetx, ctranche, utranche
+
+
+    
+    def process_incoming_payments(self, in_utxoList):
+        color_recipients = []
+
+        addr_invalue, addr_utxo, addr_outvalue = self.aggregate_incoming_payments(in_utxoList)
+
+        def in_tgen(fee = 0):
+            return self.make_in_tranche(addr_utxo, fee)
+        def out_tgen(fee = 0):
+            return self.make_out_tranche(addr_outvalue, fee)
+        
+        if self.in_color == -1:
+            colored_tgen, uncolored_tgen = out_tgen, in_tgen
+        elif self.out_color == -1:
+            colored_tgen, uncolored_tgen = it_tgen, out_tgen
+        else:
+            raise Exception, "Cannot process a case where both are colored"
+
+        wholetx, ctranche, utranche = make_transaction(colored_tgen, uncolored_tgen)
                 
-    check_and_trade()
-    #main.extraHeartbeatFunctions.append(check_and_trade)
-    print "registered auto-trade"
+        txdp = PyTxDistProposal()
+        txdp.createFromTxOutSelection(wholetx[0], wholetx[1])
+        txdp = self.wallet.signTxDistProposal(txdp)
+        finalTx = txdp.prepareFinalTx()
+        main.broadcastTransaction(finalTx)
+            
+        
+"""
+autotrade.register(MyInterpreter.context, MyInterpreter.context.walletMap['2CuYKVHwd'], '1FYXko2KSebdiTVpX53mQF14iK7SjjUnPk', '1Es9rUF3pUoLYnChf3bdH9AXsTRETqKQJq', '1FTvznygZdcxoKRs1c3ToA5fnN5S16KS6v', 0.5, 100)
+"""
 
