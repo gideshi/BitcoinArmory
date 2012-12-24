@@ -33,15 +33,16 @@ class jsonapi:
     def GET(self):
         id = web.input(id=None).id
         from_timestamp = int(web.input(from_timestamp=0).from_timestamp)
-        from_serial = int(web.input(from_serial=0).from_serial)
+        from_serial = int(web.input(from_serial=-1).from_serial)
         data = db.get('messages') or []
+        maxnum = 25 if from_timestamp == 0 and from_serial == -1 else 9999
         def filterf(x):
           if id is not None and x.get('id') != id: return False
           if x.get('timestamp',0) < from_timestamp: return False
           if x.get('serial',0) < from_serial: return False
           return True
         data = filter(filterf,data)
-        return json.dumps(sorted(data,key=lambda x:-x['timestamp'])[:25])
+        return json.dumps(sorted(data,key=lambda x:-x['timestamp'])[:maxnum])
         
     def POST(self):
         data = web.data()
