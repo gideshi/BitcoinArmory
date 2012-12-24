@@ -237,18 +237,21 @@ class ExchangePeerAgent:
 
     def poll(self):
         h = httplib.HTTPConnection('localhost:8080')
-        h.request('GET','/messages?from_timestamp=%s' % lastpoll,{})
+        h.request('GET','/messages?from_serial=%s' % (lastpoll+1),{})
         try:
             resp = json.loads(h.getresponse().read())
             for x in resp:
-                if x.get('timestamp') > lastpoll: lastpoll = x.get('timestamp')
-                if 'oid' in x:
-                    o = ExchangeOffer(x['oid'],x['A'],x['B'])
+                if x.get('serial') > lastpoll: lastpoll = x.get('serial')
+                content = x.get('content')
+                if 'oid' in content:
+                    o = ExchangeOffer(content['oid'],content['A'],content['B'])
                     self.registerOffer(o)
-                elif 'pid' in x:
+                elif 'pid' in content:
                     p = ExchangeProposal()
-                    p.importTheirs(x)
+                    p.importTheirs(content)
                     self.dispatchExchangeProposal(p)
+                else:
+                    return False
             return True      
         except:
             return False
