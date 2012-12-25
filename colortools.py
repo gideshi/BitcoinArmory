@@ -7,8 +7,6 @@ import urllib2
 definition_url_template = "http://srv7.coventry.fennec.name:8080/static/colordefs/%s.colordef"
 post_definition_url = "http://srv7.coventry.fennec.name:8080/publish"
 
-main = None
-
 def store_color_def(colordef):
     colorid = colordef['colorid']
     path = os.path.join(ARMORY_HOME_DIR, "colordefs", "%s.colordef" % colorid)
@@ -23,8 +21,7 @@ def delete_color_def(colorid):
 
 def install_color_def(colordef):
     store_color_def(colordef)
-    AddColorDefinition(colordef)
-    main.populateColorCombo()
+    AddColorDefinition(colordef, notify=True)
 
 def issue_colored_coins(wallet, toaddr, amount_in_units, partial_definition):
     utxoList = wallet.getTxOutListX(-1, 'Spendable')
@@ -60,8 +57,7 @@ def issue_colored_coins(wallet, toaddr, amount_in_units, partial_definition):
                            "outindex": 0}]
     colordefs.FinalizeColorDefinition(colordef)
     install_color_def(colordef)
-    main.broadcastTransaction(finalTx)
-    
+    engine_broadcast_transaction(finalTx)
     return colordef['colorid']
 
 def is_url_like(string):

@@ -63,6 +63,9 @@ class ArmoryMainWindow(QMainWindow):
    #############################################################################
    def __init__(self, parent=None):
       super(ArmoryMainWindow, self).__init__(parent)
+
+      engine_set_main(self) # register in armoryengine
+
       # SETUP THE WINDOWS DECORATIONS
       self.lblLogoIcon = QLabel()
       if USE_TESTNET:
