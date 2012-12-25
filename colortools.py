@@ -96,6 +96,9 @@ def find_color_definition(colorid):
     return None
 
 def find_color_index(colorid):
+    if not colorid:
+        # empty colorid designates uncolored coins
+        return -1
     i = 0
     for [colorname, colordef, cd] in color_definitions:
         if colordef['colorid'] == colorid:
