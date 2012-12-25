@@ -25,6 +25,30 @@ class ExchangeOffer:
                 "A": self.A,
                 "B": self.B}
 
+    def matches(self, offer):
+        """A <=x=> B"""
+        def prop_matches(name):
+            if ((self.A[name] == offer.B[name]) and
+                (self.B[name] == offer.A[name])):
+                return True
+        return prop_matches('value') and prop_matches('colorid')
+
+    def isSameAsMine(self, my_offer):
+        # One of addresses is missing in my_offer
+        if 'address' in my_offer.A:
+            if self.A['address'] != my_offer.A['address']: return False
+        if 'address' in my_offer.B:
+            if self.B['address'] != my_offer.B['address']: return False
+
+        def checkprop(name):
+            if self.A[name] != my_offer.A[name]: return False
+            if self.B[name] != my_offer.B[name]: return False
+
+        if not checkprop('colorid'): return False
+        if not checkprop('value'): return False
+
+        return True
+
     @classmethod
     def importTheirs(cls, data):
         # TODO: verification
@@ -53,12 +77,6 @@ class MyTranche(object):
         txdp.createFromTxOutSelection(p.utxoSelect, p.recipientPairs)
         return txdp
 
-#class TheirETransactionTranche(ETransactionTranche):
-#    @classmethod
-#    def importTxDP(cls, txdp_ascii):
-#        self.txdp = PyTxDistProposal()
-#        self.txdp.unserializeAscii(txpd_ascii)
-        
 
 def merge_txdps(l, r):
     res = l.pytxObj.copy()
@@ -89,6 +107,10 @@ class ExchangeTransaction:
         assert self.txdp
         return self.txdp
 
+    def broadcast(self):
+        finalTx = self.getTxDP().prepareFinalTx()
+        engine_broadcast_transaction(finalTx)
+
     def getASCIITxDP(self):
         return self.getTxDP().serializeAscii()
 
@@ -99,6 +121,7 @@ class ExchangeProposal:
         self.my_tranche = my_tranche
         self.etransaction = ExchangeTransaction()
         self.etransaction.addMyTranche(self.my_tranche)
+        self.sealed = False
 
     def export(self):
         return {"pid": self.pid,
@@ -153,37 +176,27 @@ class ExchangeProposal:
 
 class ExchangePeerAgent:
     def __init__(self, wallet):
-        self.offers = dict()
+        self.my_offers = dict()
+        self.their_offers = dict()
         self.wallet = wallet
         self.eproposals = dict()
         self.lastpoll = 0
         self.pollingloop()
 
-    def registerOffer(self, offer):
-        self.offers[offer.oid] = offer
+    def registerMyOffer(self, offer):
+        self.my_offers[offer.oid] = offer
+        self.matchOffers()
 
-    def matchesOffer(self,offer,reply):
-        # Do the addresses match?
-        if offer.A['address'] != reply.A['address']: return False
-        if offer.B['address'] != reply.B['address']: return False
-        # Color checking
-        cOfferA, cOfferB = colorInd(orig.A), colorInd(orig.B)
-        cReplyA, cReplyB = colorInd(other.A), colorInd(other.B)
-        # Are the colors even valid?
-        if not (cOfferA and cOfferB and cReplyA and cReplyB): return False
-        # Do the colors match?
-        if cOfferA != cReplyB or cOfferB != cReplyA: return False
-        # A counter-offer MORE favorable to me than what I wanted is great,
-        # LESS favorable is not
-        isOfferMyOffer = offer.oid in self.offers
-        if isOfferMyOffer:
-          if orig.A['value'] != other.B['value']: return False
-          if other.A['value'] < self.B['value']: return False
-        else:
-          if orig.A['value'] < other.B['value']: return False
-          if other.A['value'] != self.B['value']: return False
-        return True
-    
+    def registerTheirOffer(self, offer):
+        self.their_offers[offer.oid] = offer
+        self.matchOffers()
+
+    def matchOffers(self):
+        for my_offer in self.my_offers:
+            for their_offer in self.their_offers:
+                if my_offer.matches(their_offer):
+                    self.makeExchangeProposal(their_offer, my_offer.A['address'], my_offer.A['value'])
+
     def makeExchangeProposal(self, orig_offer, my_address, my_value):
         offer = ExchangeOffer(orig_offer.oid, orig_offer.A.copy(), orig_offer.B.copy())
         assert my_value == offer.B['value'] # TODO: support for partial fill
@@ -194,12 +207,12 @@ class ExchangePeerAgent:
         my_tranche = MyTranche.createPayment(self.wallet, bcolor, my_value, offer.A['address'])
         ep = ExchangeProposal(offer, my_tranche)
         self.eproposals[ep.pid] = ep
-        return ep
+        self.postMessage(ep)
 
     def dispatchExchangeProposal(self, ep_data):
         ep = ExchangeProposal()
         ep.importTheirs(ep_data)
-        if ep.offer.oid in self.offers:
+        if ep.offer.oid in self.my_offers:
           return self.acceptExchangeProposal(ep)
         elif ep.offer.pid in self.eproposals:
           return self.updateExchangeProposal(ep)
@@ -208,19 +221,25 @@ class ExchangePeerAgent:
           return None
         
     def acceptExchangeProposal(self, ep):
+        if ep.pid in self.eproposals:
+            # TODO: renegotiation?
+            return # duplicate detected
         offer = ep.offer
-        matching_offer = self.offers[offer.oid]
-        if not self.matchesOffer(offer,matching_offer):
+        my_offer = self.my_offers[offer.oid]
+        if not offer.isSameAsMine(my_offer):
             raise Exception("Is invalid or incongruent with my offer")
         if not ep.checkOutputsToMe(offer.A['address'],offer.B['color'],offer.B['value']):
             raise Exception("Offer does not contain enough coins of the color that I want for me")
         ep.addMyTranche(MyTranche.createPayment(self.wallet, offer.A['color'], offer.A['value'], offer.B['address']))
         ep.signMyTranche(self.wallet)
         self.eproposals[ep.pid] = ep
-        return ep
+        self.postMessage(ep)
 
     def updateExchangeProposal(self, ep):
         my_ep = self.eproposals.get([ep.pid], None)
+        if my_ep.sealed:
+            # cannot update sealed EP
+            return
         offer = my_ep.offer
         ep.my_tranche = my_ep.my_tranche
         if not ep.checkOutputsToMe(offer.B['address'],offer.A['color'],offer.A['value']): 
@@ -228,7 +247,9 @@ class ExchangePeerAgent:
         ep.signMyTranche(self.wallet)
         if not (ep.etransaction.getTxDP().checkTxHasEnoughSignatures()):
             raise Exception("Not all inputs are signed for some reason")
-        return ep
+        my_ep.sealed = True
+        ep.etransaction.broadcast()
+
 
     def postMessage(self,obj):
         h = httplib.HTTPConnection('localhost:8080')
@@ -246,11 +267,9 @@ class ExchangePeerAgent:
                 content = x.get('content')
                 if 'oid' in content:
                     o = ExchangeOffer(content['oid'],content['A'],content['B'])
-                    self.registerOffer(o)
+                    self.registerTheirOffer(o)
                 elif 'pid' in content:
-                    p = ExchangeProposal()
-                    p.importTheirs(content)
-                    self.dispatchExchangeProposal(p)
+                    self.dispatchExchangeProposal(content)
                 else:
                     return False
             return True      
