@@ -10,8 +10,7 @@ def findMatchingAddr(utxo):
 
 
 class AutoTrade(object):
-    def __init__(self, main, wallet):
-        self.main = main
+    def __init__(self, wallet):
         self.wallet = wallet
         
     def initAddresses(self, in_addr, accum_addr, out_addr):
@@ -28,7 +27,7 @@ class AutoTrade(object):
         self.out_color = out_color
         self.rate = rate
 
-    def register(self):
+    def register(self, main):
         def ct():
             self.check_and_trade()
         main.extraHeartbeatFunctions.append(ct)
@@ -39,6 +38,7 @@ class AutoTrade(object):
             self.process_incoming_payments(in_utxoList)
 
     def want_payment(self, utxo, addr, value):
+        return True
         # ignore pay-to-self
         return not self.wallet.hasAddr(addr)
 
@@ -51,7 +51,7 @@ class AutoTrade(object):
             value = utxo.getValue()
             if self.want_payment(utxo, addr, value):
                 addr_invalue[addr] += value
-                utxo_used.append(utxo)
+                addr_utxo[addr].append(utxo)
         for addr, value in addr_invalue.iteritems():
             outvalue = int(value * self.rate)
             if outvalue == 0:
@@ -68,6 +68,8 @@ class AutoTrade(object):
         for utxo_list in addr_utxo.values():
             tranche_utxos += utxo_list
             total_invalue += sum([u.getValue() for u in utxo_list])
+        if total_invalue < fee:
+            raise Exception, "Not enough incoming payments to pay a fee"
         return (tranche_utxos, [[self.accum_addr160, (total_invalue - fee)]])
 
     def make_out_tranche(self, addr_outvalue, fee = 0):
@@ -78,7 +80,7 @@ class AutoTrade(object):
             recip.append([addr, outvalue])
 
         out_utxoList = self.wallet.getAddrTxOutListX(self.out_color, self.out_addr160, 'Spendable')
-        out_utxoSelect = PySelectCoins(my_utxoList, total_outvalue, fee) if out_utxoList else None
+        out_utxoSelect = PySelectCoins(out_utxoList, total_outvalue, fee) if out_utxoList else None
         if not out_utxoSelect:
             raise Exception, "Not enough coins for output, aborting"
         utxo_value = sum([u.getValue() for u in out_utxoSelect])
@@ -98,14 +100,12 @@ class AutoTrade(object):
             utranche = uncolored_tgen(fee)
             wholetx = self.combine_tranches(ctranche, utranche)
             total_value = sum([u.getValue() for u in wholetx[0]])
-            want_fee = calcMinSuggestedFees(wholetx, total_value, fee)[1]
+            want_fee = calcMinSuggestedFees(wholetx[0], total_value, fee)[1]
             if fee <= want_fee:
                 break
             else:
                 fee = want_fee
         return wholetx, ctranche, utranche
-
-
     
     def process_incoming_payments(self, in_utxoList):
         color_recipients = []
@@ -124,13 +124,20 @@ class AutoTrade(object):
         else:
             raise Exception, "Cannot process a case where both are colored"
 
-        wholetx, ctranche, utranche = make_transaction(colored_tgen, uncolored_tgen)
-                
+        wholetx, ctranche, utranche = self.make_transaction(colored_tgen, uncolored_tgen)
+
+        for u in wholetx[0]:
+            print u.pprintOneLine()
+        
+        for r in wholetx[1]:
+            print r
+        
+
         txdp = PyTxDistProposal()
         txdp.createFromTxOutSelection(wholetx[0], wholetx[1])
         txdp = self.wallet.signTxDistProposal(txdp)
         finalTx = txdp.prepareFinalTx()
-        main.broadcastTransaction(finalTx)
+        engine_broadcast_transaction(finalTx)
             
         
 """
