@@ -10240,7 +10240,6 @@ class DlgIssueColoredCoins(ArmoryDialog):
 
       colorid = None
       try:
-         colortools.main = self.main
          partial_def = {"name": name, "unit": unit}
          colorid = colortools.issue_colored_coins(self.wallet, toAddrStr, amount, partial_def)
       except Exception as e:
@@ -10280,8 +10279,6 @@ class DlgDownloadColorDefinition(ArmoryDialog):
       self.layout = QGridLayout()
       self.setLayout(self.layout)
       self.setWindowTitle("Download color definition")
-
-      colortools.main = main
 
       self.editURL = QLineEdit()
       self.editURL.setMinimumWidth(relaxedSizeNChar(GETFONT('var'), 50)[0])
@@ -10340,8 +10337,6 @@ class DlgManageColorDefinitions(ArmoryDialog):
    def __init__(self, parent, main):
       super(DlgManageColorDefinitions, self).__init__(parent, main)
       self.layout = QGridLayout()
-
-      colortools.main = main
 
       self.comboColorSelect = QComboBox()
       def onColorChange(x):
