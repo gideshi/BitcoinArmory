@@ -2,6 +2,8 @@ from armoryengine import *
 import os
 import colortools
 import json
+import urllib, httplib
+import threading, time
 
 def make_random_id():
     bits = os.urandom(8)
@@ -154,6 +156,8 @@ class ExchangePeerAgent:
         self.offers = dict()
         self.wallet = wallet
         self.eproposals = dict()
+        self.lastpoll = 0
+        self.pollingloop()
 
     def registerOffer(self, offer):
         self.offers[offer.oid] = offer
@@ -225,3 +229,39 @@ class ExchangePeerAgent:
         if not (ep.etransaction.getTxDP().checkTxHasEnoughSignatures()):
             raise Exception("Not all inputs are signed for some reason")
         return ep
+
+    def postMessage(self,obj):
+        h = httplib.HTTPConnection('localhost:8080')
+        data = json.dumps(obj.export())
+        h.request('POST', '/messages', data, {})
+        return k.getresponse().read() == 'Success'
+
+    def poll(self):
+        h = httplib.HTTPConnection('localhost:8080')
+        h.request('GET','/messages?from_serial=%s' % (lastpoll+1),{})
+        try:
+            resp = json.loads(h.getresponse().read())
+            for x in resp:
+                if x.get('serial') > lastpoll: lastpoll = x.get('serial')
+                content = x.get('content')
+                if 'oid' in content:
+                    o = ExchangeOffer(content['oid'],content['A'],content['B'])
+                    self.registerOffer(o)
+                elif 'pid' in content:
+                    p = ExchangeProposal()
+                    p.importTheirs(content)
+                    self.dispatchExchangeProposal(p)
+                else:
+                    return False
+            return True      
+        except:
+            return False
+
+    def pollingloop(self):
+        def infipoll():
+            while 1:
+                time.sleep(15)
+                self.poll()
+        t = threading.Thread(target=infipoll)
+        t.start()
+        return t
