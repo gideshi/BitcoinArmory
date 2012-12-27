@@ -677,11 +677,14 @@ except:
 ################################################################################
 # Might as well create the BDM right here -- there will only ever be one, anyway
 TheBDM = Cpp.BlockDataManager().getBDM()
-TheMain = None
+_TheMain = None
 
 def engine_set_main(main):
-   global TheMain
-   TheMain = main
+   global _TheMain
+   _TheMain = main
+
+def get_main():
+   return _TheMain
 
 DATATYPE = enum("Binary", 'Base58', 'Hex')
 def isLikelyDataType(theStr, dtype=None):
@@ -1146,8 +1149,8 @@ def difficulty_to_binaryBits(i):
 
 ################################################################################
 def engine_broadcast_transaction(tx):
-   if TheMain:
-      TheMain.broadcastTransaction(tx)
+   if _TheMain:
+      _TheMain.broadcastTransaction(tx)
    else:
       raise Exception, "engine broadcast transcaction: no 'main'"
 
@@ -1183,8 +1186,8 @@ def AddColorDefinition(colordef, notify = False):
       raise Exception("unknown color definition style")
    colorDude.addColorDefinition(cd)
    color_definitions.append([colorname, colordef, cd])
-   if notify and TheMain:
-      TheMain.populateColorCombo()
+   if notify and _TheMain:
+      _TheMain.populateColorCombo()
 
 def _store_color_def(colordef):
     colorid = colordef['colorid']
