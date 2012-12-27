@@ -276,8 +276,10 @@ class ExchangePeerAgent:
             self.dispatchExchangeProposal(content)
 
 class HTTPExchangeComm:
-    def __init__(self, agent):
-        self.agent = agent
+    def __init__(self):
+        self.agents = []
+    def addAgent(self, agent):
+        self.agents.append(agent)
 
     def postMessage(self, content):
         h = httplib.HTTPConnection('localhost:8080')
@@ -292,7 +294,9 @@ class HTTPExchangeComm:
             resp = json.loads(h.getresponse().read())
             for x in resp:
                 if x.get('serial') > lastpoll: lastpoll = x.get('serial')
-                agent.dispatchMessage(x.get('content'))
+                content = x.get('content')
+                for a in self.agents:
+                    a.dispatchMessage(content)
             return True      
         except:
             return False
