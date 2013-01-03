@@ -32,7 +32,12 @@ def mkagent(wfile):
 ag1 = mkagent(CLI_ARGS[0])
 ag2 = mkagent(CLI_ARGS[1])
 
-testcolor = '26546d600e1a6a278eba2170559afe415ddcdd88'
+try:
+    import p2ptrade_test_config
+    testcolor = p2ptrade_test_config.testcolor
+except:
+    testcolor = '8ec9668e393f2b7682daa2fd40eeee873c07c9ed'
+
 uncolored = ''
 
 o1 = p2ptrade.MyExchangeOffer(None, {"value": 100, "colorid": testcolor}, {'value': 100, 'colorid': uncolored})
