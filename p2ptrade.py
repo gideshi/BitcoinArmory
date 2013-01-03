@@ -3,7 +3,7 @@ import os, sys
 import colortools
 import json
 import copy
-import urllib, httplib
+import urllib2
 import threading, time
 from ast import literal_eval as safe_eval
 
@@ -375,23 +375,26 @@ class ExchangePeerAgent:
 
 
 class HTTPExchangeComm:
-    def __init__(self):
+    def __init__(self, url = 'http://localhost:8080/messages'):
         self.agents = []
-        self.lastpoll = 0
+        self.lastpoll = -1
+        self.url = url
 
     def addAgent(self, agent):
         self.agents.append(agent)
 
     def postMessage(self, content):
-        h = httplib.HTTPConnection('localhost:8080')
         print "----- POSTING MESSAGE -----"
         print content
         data = json.dumps(content)
-        h.request('POST', '/messages', data)
-        return h.getresponse().read() == 'Success'
+        u = urllib2.urlopen(self.url, data)
+        return u.read() == 'Success'
 
     def pollAndDispatch(self):
-        u = urllib.urlopen('http://localhost:8080/messages?from_serial=%s' % (self.lastpoll+1))
+        url = self.url
+        if self.lastpoll != -1:
+            url = url + '?from_serial=%s' % (self.lastpoll+1)
+        u = urllib2.urlopen(url)
         try:
             resp = json.loads(u.read())
             for x in resp:

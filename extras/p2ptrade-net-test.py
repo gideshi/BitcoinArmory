@@ -12,10 +12,18 @@ import time
 
 connector.init()
 
+try:
+    import p2ptrade_test_config
+    testcolor = p2ptrade_test_config.testcolor
+    msg_url = p2ptrade_test_config.msg_url
+except:
+    testcolor = '8ec9668e393f2b7682daa2fd40eeee873c07c9ed'
+    msg_url = 'http://localhost:8080/messages'
+
 def mkagent(wfile):
     wlt = PyBtcWallet().readWalletFile(wfile)
     connector.register_wallet(wlt)
-    c = p2ptrade.HTTPExchangeComm()
+    c = p2ptrade.HTTPExchangeComm(msg_url)
     a = p2ptrade.ExchangePeerAgent(wlt, c)
     c.addAgent(a)
     c.startUpdateLoopThread(2)
@@ -24,11 +32,6 @@ def mkagent(wfile):
 ag1 = mkagent(CLI_ARGS[0])
 ag2 = mkagent(CLI_ARGS[1])
 
-try:
-    import p2ptrade_test_config
-    testcolor = p2ptrade_test_config.testcolor
-except:
-    testcolor = '8ec9668e393f2b7682daa2fd40eeee873c07c9ed'
 
 uncolored = ''
 
