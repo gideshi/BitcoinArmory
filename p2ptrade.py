@@ -92,7 +92,12 @@ class MyTranche(object):
         p = MyTranche()
         p.txdp = None
         p.utxoList = wallet.getTxOutListX(color, 'Spendable')
-        p.utxoSelect = PySelectCoins(p.utxoList, amount, 0)
+        p.color = color
+        if color == -1:
+            fee = 2 * MIN_TX_FEE
+        else:
+            fee = 0
+        p.utxoSelect = PySelectCoins(p.utxoList, amount, fee)
         if p.utxoSelect:
             totalSelectCoins = sum([u.getValue() for u in p.utxoSelect])
             change = totalSelectCoins - amount
@@ -130,19 +135,26 @@ class ExchangeTransaction:
 
     def addMyTranche(self, my_tranche):
         r = my_tranche.makeTxDistProposal()
-        self.addTxDP(r)
+        self.addTxDP(r, my_tranche.color == -1)
 
-    def addTxDP(self, atxdp):
+    def addTxDP(self, atxdp, uncolored='unspecified'):
         if not self.txdp:
             self.txdp = atxdp
         else:
-            self.txdp = merge_txdps(self.txdp, atxdp)
+            if uncolored == 'unspecified':
+                raise Exception, "need to know whether txdp to be added is uncolored when merging"
+            # make sure that uncolored goes last
+            if uncolored:
+                self.txdp = merge_txdps(self.txdp, atxdp)
+            else:
+                self.txdp = merge_txdps(atxdp, self.txdp)
 
     def getTxDP(self):
         assert self.txdp
         return self.txdp
 
     def broadcast(self):
+        self.getTxDP().pprint()
         finalTx = self.getTxDP().prepareFinalTx()
         print "----- SUCCESS! BROADCASTING TRANSACTION -----"
         finalTx.pprint()
