@@ -35,11 +35,21 @@ ag2 = mkagent(CLI_ARGS[1])
 testcolor = '26546d600e1a6a278eba2170559afe415ddcdd88'
 uncolored = ''
 
-o1 = p2ptrade.ExchangeOffer(None, {"value": 100, "colorid": testcolor}, {'value': 100, 'colorid': uncolored})
-o2 = p2ptrade.ExchangeOffer(None, {"value": 100, "colorid": uncolored}, {"value": 100, 'colorid': testcolor})
+o1 = p2ptrade.MyExchangeOffer(None, {"value": 100, "colorid": testcolor}, {'value': 100, 'colorid': uncolored})
+o2 = p2ptrade.MyExchangeOffer(None, {"value": 100, "colorid": uncolored}, {"value": 100, 'colorid': testcolor})
 
 ag1.registerMyOffer(o1)
 ag2.registerMyOffer(o2)
 
-ag1.postMessage(o1)
+get_main().do_not_broadcast = True
+
+print "      1      "
+ag1.updateState()
+print "      2      "
+ag2.updateState()
+
+print "      1.1      "
+ag1.updateState()
+print "      2.1      "
+ag2.updateState()
 
