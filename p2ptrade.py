@@ -1,9 +1,13 @@
+from __future__ import unicode_literals
+
 from armoryengine import *
-import os
+import os, sys
 import colortools
 import json
+import copy
 import urllib, httplib
 import threading, time
+from ast import literal_eval as safe_eval
 
 def make_random_id():
     bits = os.urandom(8)
@@ -20,10 +24,24 @@ class ExchangeOffer:
         self.A = A
         self.B = B
 
+    @classmethod
+    def export_side(cls,side):
+        sd = copy.copy(side)
+        if 'address' in sd: 
+          bin_addr = ADDRBYTE+sd['address']+hash256(ADDRBYTE + sd['address'])[:4]
+          sd['address'] = binary_to_base58(bin_addr)
+        return sd
+
+    @classmethod
+    def import_side(cls,side):
+        sd = copy.copy(side)
+        if 'address' in sd: sd['address'] = base58_to_binary(sd['address'])[1:21]
+        return sd
+
     def export(self):
         return {"oid": self.oid,
-                "A": self.A,
-                "B": self.B}
+                "A": self.export_side(self.A),
+                "B": self.export_side(self.B)}
 
     def matches(self, offer):
         """A <=x=> B"""
@@ -52,7 +70,8 @@ class ExchangeOffer:
     @classmethod
     def importTheirs(cls, data):
         # TODO: verification
-        return ExchangeOffer(data["oid"], data["A"], data["B"])
+        x = ExchangeOffer(data["oid"], cls.import_side(data["A"]), cls.import_side(data["B"]))
+        return x
 
 class MyTranche(object):
     @classmethod
@@ -98,7 +117,8 @@ class ExchangeTransaction:
         pass
 
     def addMyTranche(self, my_tranche):
-        self.addTxDP(my_tranche.makeTxDistProposal())
+        r = my_tranche.makeTxDistProposal()
+        self.addTxDP(r)
 
     def addTxDP(self, atxdp):
         if not self.txdp:
@@ -112,6 +132,7 @@ class ExchangeTransaction:
 
     def broadcast(self):
         finalTx = self.getTxDP().prepareFinalTx()
+        print "----- SUCCESS! BROADCASTING TRANSACTION -----"
         finalTx.pprint()
         engine_broadcast_transaction(finalTx)
 
@@ -150,7 +171,6 @@ class ExchangeProposal:
     def checkOutputsToMe(self,myaddress,color,value):
         txdp = self.etransaction.getTxDP()
         coloredOutputs = colortools.compute_pytx_colors(txdp.pytxObj)
-        print coloredOutputs
         sumv = 0
         for out,col in zip(txdp.pytxObj.outputs,coloredOutputs):
           if TxOutScriptExtractAddr160(out.binScript) == myaddress:
@@ -185,7 +205,6 @@ class ExchangePeerAgent:
         self.their_offers = dict()
         self.wallet = wallet
         self.eproposals = dict()
-        self.lastpoll = 0
         self.comm = comm
 
     def registerMyOffer(self, offer):
@@ -209,7 +228,7 @@ class ExchangePeerAgent:
         assert my_value == offer.B['value'] # TODO: support for partial fill
         offer.B['address'] = my_address
         acolor, bcolor = colorInd(offer.A), colorInd(offer.B)
-        if not acolor or not bcolor:
+        if acolor is None or bcolor is None:
             raise Exception("My colorid is not recognized")
         my_tranche = MyTranche.createPayment(self.wallet, bcolor, my_value, offer.A['address'])
         ep = ExchangeProposal()
@@ -237,7 +256,7 @@ class ExchangePeerAgent:
         if not offer.isSameAsMine(my_offer):
             raise Exception("Is invalid or incongruent with my offer")
         acolor, bcolor = colorInd(offer.A), colorInd(offer.B)
-        if not acolor or not bcolor:
+        if acolor is None or bcolor is None:
             raise Exception("My colorid is not recognized")
         if not ep.checkOutputsToMe(offer.A['address'], bcolor, offer.B['value']):
             raise Exception("Offer does not contain enough coins of the color that I want for me")
@@ -254,7 +273,7 @@ class ExchangePeerAgent:
         offer = my_ep.offer
         ep.my_tranche = my_ep.my_tranche
         acolor, bcolor = colorInd(offer.A), colorInd(offer.B)
-        if not acolor or not bcolor:
+        if acolor is None or bcolor is None:
             raise Exception("My colorid is not recognized")
         if not ep.checkOutputsToMe(offer.B['address'], acolor, offer.A['value']): 
             raise Exception("Offer does not contain enough coins of the color that I want for me")
@@ -270,7 +289,7 @@ class ExchangePeerAgent:
 
     def dispatchMessage(self, content):
         if 'oid' in content:
-            o = ExchangeOffer(content['oid'],content['A'],content['B'])
+            o = ExchangeOffer.importTheirs(content)
             self.registerTheirOffer(o)
         elif 'pid' in content:
             self.dispatchExchangeProposal(content)
@@ -278,33 +297,38 @@ class ExchangePeerAgent:
 class HTTPExchangeComm:
     def __init__(self):
         self.agents = []
+        self.lastpoll = 0
     def addAgent(self, agent):
         self.agents.append(agent)
 
     def postMessage(self, content):
         h = httplib.HTTPConnection('localhost:8080')
+        print "----- POSTING MESSAGE -----"
+        print content
         data = json.dumps(content)
-        h.request('POST', '/messages', data, {})
-        return k.getresponse().read() == 'Success'
+        h.request('POST', '/messages', data)
+        return h.getresponse().read() == 'Success'
 
     def poll(self):
-        h = httplib.HTTPConnection('localhost:8080')
-        h.request('GET','/messages?from_serial=%s' % (lastpoll+1),{})
+        u = urllib.urlopen('http://localhost:8080/messages?from_serial=%s' % (self.lastpoll+1))
         try:
-            resp = json.loads(h.getresponse().read())
+            resp = json.loads(u.read())
             for x in resp:
-                if x.get('serial') > lastpoll: lastpoll = x.get('serial')
-                content = x.get('content')
-                for a in self.agents:
-                    a.dispatchMessage(content)
+                if int(x.get('serial',0)) > self.lastpoll: self.lastpoll = int(x.get('serial',0))
+                content = x.get('content',None)
+                if content:
+                    for a in self.agents:
+                        a.dispatchMessage(content)
             return True      
         except:
+            print "----- ERROR -----"
+            print sys.exc_info()
             return False
 
-    def pollingLoop(self):
+    def pollingLoop(self,period=15):
         def infipoll():
             while 1:
-                time.sleep(15)
+                time.sleep(period)
                 self.poll()
         t = threading.Thread(target=infipoll)
         t.start()

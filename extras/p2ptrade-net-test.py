@@ -10,23 +10,13 @@ import colortools
 
 connector.init()
 
-class EchoExchangeComm:
-    def __init__(self):
-        self.agents = []
-    def addAgent(self, agent):
-        self.agents.append(agent)
-    def postMessage(self, content):
-        print content
-        for a in self.agents:
-            a.dispatchMessage(content)
-
-comm = EchoExchangeComm()
-
 def mkagent(wfile):
     wlt = PyBtcWallet().readWalletFile(wfile)
     connector.register_wallet(wlt)
-    a = p2ptrade.ExchangePeerAgent(wlt, comm)
-    comm.addAgent(a)
+    c = p2ptrade.HTTPExchangeComm()
+    a = p2ptrade.ExchangePeerAgent(wlt, c)
+    c.addAgent(a)
+    c.pollingLoop(2)
     return a
 
 ag1 = mkagent(CLI_ARGS[0])
@@ -45,4 +35,5 @@ print "o2 registered"
 
 ag1.postMessage(o1)
 print "o1 posted"
+
 
