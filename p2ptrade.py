@@ -198,12 +198,13 @@ class ExchangeProposal:
     def checkOutputsToMe(self,myaddress,color,value):
         txdp = self.etransaction.getTxDP()
         coloredOutputs = colortools.compute_pytx_colors(txdp.pytxObj)
+        print coloredOutputs
         sumv = 0
         for out,col in zip(txdp.pytxObj.outputs,coloredOutputs):
           if TxOutScriptExtractAddr160(out.binScript) == myaddress:
             if col == color:
               sumv += out.value
-        offer = self.offer
+        print "Want %s of color %s, got %s" % (value, color, sumv)
         return sumv >= value
 
     # Are all of the inputs in my tranche?

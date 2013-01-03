@@ -38,6 +38,8 @@ uncolored = ''
 o1 = p2ptrade.MyExchangeOffer(None, {"value": 100, "colorid": testcolor}, {'value': 100, 'colorid': uncolored})
 o2 = p2ptrade.MyExchangeOffer(None, {"value": 100, "colorid": uncolored}, {"value": 100, 'colorid': testcolor}, False)
 
+get_main().do_not_broadcast = True
+
 ag1.registerMyOffer(o1)
 print "o1 registered"
 ag2.registerMyOffer(o2)
