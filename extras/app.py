@@ -4,7 +4,7 @@ import time
 import os
 import sqlite3
 
-from p2ptrade import *
+#from p2ptrade import *
 
 urls = ('/messages', 'jsonapi')
 
