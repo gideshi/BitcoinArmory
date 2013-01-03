@@ -41,7 +41,7 @@ class jsonapi:
         else:
           rawdata = conn.execute('SELECT * From messages WHERE serial >= ? AND timestamp >= ?',
                      (from_serial, from_timestamp)).fetchall()
-        data = [{'id':x[0],'timestamp':x[1],'serial':x[2],'content':x[3]} for x in rawdata]
+        data = [{'id':x[0],'timestamp':x[1],'serial':x[2],'content':json.loads(x[3])} for x in rawdata]
         return json.dumps(sorted(data,key=lambda x:-x['timestamp'])[:maxnum])
         
     def POST(self):
@@ -65,4 +65,8 @@ class jsonapi:
 
 if __name__ == '__main__':
     app.run()
+    # To make it run on another port, use python app.py <port number>, or 
+    # replace app.run() with the line below, substituting 8888 with your
+    # desired port
+    # web.httpserver.runsimple(app.wsgifunc(), ("0.0.0.0", 8888))
 

@@ -39,7 +39,9 @@ o1 = p2ptrade.MyExchangeOffer(None, {"value": 100, "colorid": testcolor}, {'valu
 o2 = p2ptrade.MyExchangeOffer(None, {"value": 100, "colorid": uncolored}, {"value": 100, 'colorid': testcolor})
 
 ag1.registerMyOffer(o1)
+print "o1 registered"
 ag2.registerMyOffer(o2)
+print "o2 registered"
 
 get_main().do_not_broadcast = True
 
@@ -52,4 +54,3 @@ print "      1.1      "
 ag1.updateState()
 print "      2.1      "
 ag2.updateState()
-
