@@ -10,13 +10,15 @@ btcNetFactory = None
 class ConMain:
     def __init__(self):
         self.wallets = []
+        self.do_not_broadcast = False
     def addWallet(self, wallet):
         self.wallets.append(wallet)
     def broadcastTransaction(self, tx):
-        btcNetFactory.sendTx(tx)
-        TheBDM.addNewZeroConfTx(tx.serialize(), long(RightNow()), True)
-        for w in self.wallets:
-            TheBDM.rescanWalletZeroConf(w.cppWallet)
+        if not self.do_not_broadcast:
+            btcNetFactory.sendTx(tx)
+            TheBDM.addNewZeroConfTx(tx.serialize(), long(RightNow()), True)
+            for w in self.wallets:
+                TheBDM.rescanWalletZeroConf(w.cppWallet)
 
 def init():
     engine_set_main(ConMain())
