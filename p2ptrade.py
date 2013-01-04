@@ -280,6 +280,7 @@ class ExchangePeerAgent:
         self.match_offers = True
 
     def registerTheirOffer(self, offer):
+        print "register oid %s " % offer.oid
         self.their_offers[offer.oid] = offer
         offer.refresh()
         self.match_offers = True
@@ -316,14 +317,19 @@ class ExchangePeerAgent:
     def dispatchExchangeProposal(self, ep_data):
         ep = ExchangeProposal()
         ep.importTheirs(ep_data)
+        print "ep oid:%s, pid:%s, ag:%s" % (ep.offer.oid, ep.pid, self)        
         if self.hasActiveEP():
+            print "has active EP"
             if ep.pid == self.active_ep.pid:
                 if self.active_ep.state == 'proposed':
+                    print "updateExchangeProposal"
                     return self.updateExchangeProposal(ep)
                 else:
+                    print "ignore"
                     return None # it is our own proposal or something like that
         else:
             if ep.offer.oid in self.my_offers:
+                print "accept exchange proposal"
                 return self.acceptExchangeProposal(ep)
         # We have neither an offer nor a proposal matching this ExchangeProposal
         if ep.offer.oid in self.their_offers:
@@ -380,11 +386,14 @@ class ExchangePeerAgent:
         self.comm.postMessage(obj.export())
 
     def dispatchMessage(self, content):
-        if 'oid' in content:
-            o = ExchangeOffer.importTheirs(content)
-            self.registerTheirOffer(o)
-        elif 'pid' in content:
-            self.dispatchExchangeProposal(content)
+        try:
+            if 'oid' in content:
+                o = ExchangeOffer.importTheirs(content)
+                self.registerTheirOffer(o)
+            elif 'pid' in content:
+                self.dispatchExchangeProposal(content)
+        except Exception as e:
+            print "got exception %s when dispatching a message" % e
 
 
 class HTTPExchangeComm:
