@@ -208,26 +208,21 @@ class ExchangeProposal:
         return sumv >= value
 
     # Are all of the inputs in my tranche?
-    def checkInputsFromMe(self,wallet): # TODO: it doesn't work 
-        txdp = self.etransaction.getTxDP()
+    def signMyTranche(self,wallet):
         tranche = self.my_tranche
-        for inp in txdp.pytxObj.inputs:
-            addr160 = TxInScriptExtractAddr160IfAvail(inp)
-            if addr160 and wallet.hasAddr(addr160):
-                invalid = True
-                for goodInp in tranche.txdp.pytxObj.inputs:
-                    if inp.outpoint.txHash == goodInp.outpoint.txHash and \
-                            inp.outpoint.txOutIndex == goodInp.outpoint.txOutIndex:
-                        invalid = False
-                        break
-                if invalid: return False
-        return True
-        
-    def signMyTranche(self, wallet):
-        if self.checkInputsFromMe(wallet): # nope nope nope
-            wallet.signTxDistProposal(self.etransaction.txdp)
-        else:
-            raise Exception, "signMyTranche: won't sign because inputs from my wallet are not in tranche"
+        preSignedInputs = self.etransaction.txdp.signatures
+        wallet.signTxDistProposal(self.etransaction.txdp)
+        postSignedInputs = self.etransaction.txdp.signatures
+        for i in range(len(preSignedInputs)):
+          # Make sure that we are only signing inputs that we know about
+          if postSignedInputs[i] and not preSignedInputs[i]:
+            invalid = True
+            # TODO: Multisig support
+            for a in tranche.txdp.inAddr20Lists:
+              if a[0] == seld.etransaction.txdp.inAddr20Lists[0]:
+                invalid = False
+                break
+            if invalid: raise Exception("Invalid input!")
 
 class ExchangePeerAgent:
     def __init__(self, wallet, comm):
