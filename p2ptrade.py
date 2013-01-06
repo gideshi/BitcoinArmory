@@ -321,12 +321,7 @@ class ExchangePeerAgent:
         if self.hasActiveEP():
             print "has active EP"
             if ep.pid == self.active_ep.pid:
-                if self.active_ep.state == 'proposed':
-                    print "updateExchangeProposal"
-                    return self.updateExchangeProposal(ep)
-                else:
-                    print "ignore"
-                    return None # it is our own proposal or something like that
+                return self.updateExchangeProposal(ep)
         else:
             if ep.offer.oid in self.my_offers:
                 print "accept exchange proposal"
@@ -340,7 +335,6 @@ class ExchangePeerAgent:
         
     def acceptExchangeProposal(self, ep):
         if self.hasActiveEP():
-            # TODO: renegotiate?
             return
         offer = ep.offer
         my_offer = self.my_offers[offer.oid]
@@ -368,18 +362,28 @@ class ExchangePeerAgent:
         my_ep = self.active_ep
         assert my_ep and my_ep.pid == ep.pid
         offer = my_ep.offer
-        ep.my_tranche = my_ep.my_tranche
         acolor, bcolor = colorInd(offer.A), colorInd(offer.B)
-        if acolor is None or bcolor is None:
-            raise Exception("My colorid is not recognized")
-        if not ep.checkOutputsToMe(offer.B['address'], acolor, offer.A['value']): 
-            raise Exception("Offer does not contain enough coins of the color that I want for me")
-        ep.signMyTranche(self.wallet)
+
+        if my_ep.state == 'proposed':
+            if not ep.checkOutputsToMe(offer.B['address'], acolor, offer.A['value']): 
+                raise Exception("Offer does not contain enough coins of the color that I want for me")
+            ep.my_tranche = my_ep.my_tranche
+            ep.signMyTranche(self.wallet)
+        elif my_ep.state == 'accepted':
+            if not ep.checkOutputsToMe(offer.A['address'], bcolor, offer.B['value']): 
+                raise Exception("Offer does not contain enough coins of the color that I want for me")
+            # TODO: should we sign it again?
+        else:
+            raise Exception("EP state is wrong in updateExchangeProposal: %s" % my_ep.state)
+
         if not (ep.etransaction.getTxDP().checkTxHasEnoughSignatures()):
             raise Exception("Not all inputs are signed for some reason")
         ep.etransaction.broadcast()
         self.clearOrders(self.active_ep)
         self.setActiveEP(None)
+        if my_ep.state == 'proposed':
+            self.postMessage(ep)
+
 
 
     def postMessage(self, obj):
@@ -401,11 +405,15 @@ class HTTPExchangeComm:
         self.agents = []
         self.lastpoll = -1
         self.url = url
+        self.own_msgids = set()
 
     def addAgent(self, agent):
         self.agents.append(agent)
 
     def postMessage(self, content):
+        msgid = make_random_id()
+        content['msgid'] = msgid
+        self.own_msgids.add(msgid)
         print "----- POSTING MESSAGE -----"
         print content
         data = json.dumps(content)
@@ -422,7 +430,7 @@ class HTTPExchangeComm:
             for x in resp:
                 if int(x.get('serial',0)) > self.lastpoll: self.lastpoll = int(x.get('serial',0))
                 content = x.get('content',None)
-                if content:
+                if content and not content.get('msgid', '') in self.own_msgids:
                     for a in self.agents:
                         a.dispatchMessage(content)
             return True      
