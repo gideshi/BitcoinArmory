@@ -214,15 +214,14 @@ class ExchangeProposal:
         wallet.signTxDistProposal(self.etransaction.txdp)
         postSignedInputs = self.etransaction.txdp.signatures
         for i in range(len(preSignedInputs)):
-          # Make sure that we are only signing inputs that we know about
-          if postSignedInputs[i] and not preSignedInputs[i]:
-            invalid = True
-            # TODO: Multisig support
-            for a in tranche.txdp.inAddr20Lists:
-              if a[0] == seld.etransaction.txdp.inAddr20Lists[0]:
-                invalid = False
-                break
-            if invalid: raise Exception("Invalid input!")
+            # Make sure that we are only signing inputs that we know about
+            if postSignedInputs[i] and not preSignedInputs[i]:
+                invalid = True
+                for a in tranche.txdp.inAddr20Lists:
+                    if a == self.transaction.txdp.inAddr20Lists:
+                        invalid = False
+                        break
+                if invalid: raise Exception("Invalid input!")
 
 class ExchangePeerAgent:
     def __init__(self, wallet, comm):
