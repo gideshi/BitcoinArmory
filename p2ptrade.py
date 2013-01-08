@@ -100,7 +100,7 @@ class MyTranche(object):
         p.utxoSelect = PySelectCoins(p.utxoList, amount, fee)
         if p.utxoSelect:
             totalSelectCoins = sum([u.getValue() for u in p.utxoSelect])
-            change = totalSelectCoins - amount
+            change = totalSelectCoins - amount - fee
             p.recipientPairs   = [[to_address160, amount]]
             if change > 0:
                 addr = p.utxoSelect[0].getRecipientAddr()
@@ -377,8 +377,6 @@ class ExchangePeerAgent:
         self.setActiveEP(None)
         if my_ep.state == 'proposed':
             self.postMessage(ep)
-
-
 
     def postMessage(self, obj):
         self.comm.postMessage(obj.export())
