@@ -41,6 +41,7 @@ from PyQt4.QtGui import *
 from armoryengine import *
 from armorymodels import *
 from qtdialogs    import *
+import p2ptrade_gui
 from qtdefines    import *
 from armorycolors import Colors, htmlColor, QAPP
 
@@ -439,16 +440,21 @@ class ArmoryMainWindow(QMainWindow):
       #self.menusList[MENUS.Wallets].addAction(actMigrateSatoshi)
       self.menusList[MENUS.Wallets].addAction(actAddressBook)
 
+      actP2PTrade = self.createAction('&P2P exchange', self.clickP2PTrade)
+      self.menusList[MENUS.Hallucinate].addAction(actP2PTrade)
       actIssueCC = self.createAction('&Issue colored coins', self.clickIssueCC)
       self.menusList[MENUS.Hallucinate].addAction(actIssueCC)
       actManageCC = self.createAction('&Manage color definitions', self.clickManageCC)
       self.menusList[MENUS.Hallucinate].addAction(actManageCC)
+      
 
       def clickDownloadCC():
          dlg = DlgDownloadColorDefinition(self, self)
          dlg.exec_()
       actDownloadCC = self.createAction('&Download color definition', clickDownloadCC)
       self.menusList[MENUS.Hallucinate].addAction(actDownloadCC)
+
+
 
       execAbout   = lambda: DlgHelpAbout(self).exec_()
       execCommandLine   = lambda: MyInterpreter(None, self).show()
@@ -2151,8 +2157,8 @@ class ArmoryMainWindow(QMainWindow):
       dlg.exec_()
 
    #############################################################################
-   def clickIssueCC(self):
-      # TODO: refactor common code with clickSendBitcoins
+
+   def selectWallet(self):
       if not self.isOnline:
          QMessageBox.warning(self, 'Offline Mode', \
            'Armory is currently running in offline mode, and has no '
@@ -2188,48 +2194,28 @@ class ArmoryMainWindow(QMainWindow):
             selectionMade = False
 
       if selectionMade:
+         return wltID
+      else:
+         return None
+
+   def clickP2PTrade(self):
+      wltID = self.selectWallet()
+      if wltID:
+         wlt = self.walletMap[wltID]
+         dlgSend = p2ptrade_gui.P2PTradeDialog(wlt, self, self)
+         dlgSend.exec_()
+
+   def clickIssueCC(self):
+      wltID = self.selectWallet()
+      if wltID:
          wlt = self.walletMap[wltID]
          dlgSend = DlgIssueColoredCoins(wlt, self, self)
          dlgSend.exec_()
    
-
    #############################################################################
    def clickSendBitcoins(self):
-      if not self.isOnline:
-         QMessageBox.warning(self, 'Offline Mode', \
-           'Armory is currently running in offline mode, and has no '
-           'ability to determine balances or create transactions. '
-           '<br><br>'
-           'In order to send coins from this wallet you must use a '
-           'full copy of this wallet from an online computer, '
-           'or initiate an "offline transaction" using a watching-only '
-           'wallet on an online computer.', QMessageBox.Ok)
-         return
-
-      wltID = None
-      selectionMade = True
-      if len(self.walletMap)==0:
-         reply = QMessageBox.information(self, 'No Wallets!', \
-            'You cannot send any Bitcoins until you create a wallet and '
-            'receive some coins.  Would you like to create a wallet?', \
-            QMessageBox.Yes | QMessageBox.No)
-         if reply==QMessageBox.Yes:
-            self.createNewWallet(initLabel='Primary Wallet')
-         return
-      elif len(self.walletMap)==1:
-         wltID = self.walletMap.keys()[0]
-      else:
-         wltSelect = self.walletsView.selectedIndexes()
-         if len(wltSelect)>0:
-            row = wltSelect[0].row()
-            wltID = str(self.walletsView.model().index(row, WLTVIEWCOLS.ID).data().toString())
-         dlg = DlgWalletSelect(self, self, 'Send from Wallet...', firstSelect=wltID, onlyMyWallets=False)
-         if dlg.exec_():
-            wltID = dlg.selectedID 
-         else:
-            selectionMade = False
-
-      if selectionMade:
+      wltID = self.selectWallet()
+      if wltID:
          wlt = self.walletMap[wltID]
          wlttype = determineWalletType(wlt, self)[0]
          dlgSend = DlgSendBitcoins(wlt, self, self)
