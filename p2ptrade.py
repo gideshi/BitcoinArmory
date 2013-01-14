@@ -314,7 +314,7 @@ class ExchangePeerAgent:
         offer = ExchangeOffer(orig_offer.oid, orig_offer.A.copy(), orig_offer.B.copy())
         assert my_value == offer.B['value'] # TODO: support for partial fill
         if not my_address:
-            if 'address' in related_offer.A:
+            if related_offer and ('address' in related_offer.A):
                 my_address = related_offer.A['address']
             else:
                 my_address = self.wallet.getNextUnusedAddress().getAddr160()

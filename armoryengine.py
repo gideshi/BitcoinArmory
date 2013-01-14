@@ -522,7 +522,7 @@ def coin2strX(color, nSatoshi, ndec=8, rJust=False, maxZeros=8):
       unit = int(cd[1].get('unit', 1))
       magn = int(math.ceil(math.log10(unit)))
       maxZeros = min(magn, maxZeros)
-      ndex = min(magn, ndec)
+      ndec = min(magn, ndec)
 
    return coin2strB(unit, nSatoshi, ndec, rJust, maxZeros)
    
@@ -562,7 +562,7 @@ def coin2strB(unit, nSatoshi, ndec=8, rJust=False, maxZeros=8):
          s  = s[:-nChop] + nChop*' '
 
    if not rJust:
-      s.strip(' ')
+      s = s.strip(' ')
 
    s = s.replace('. ','  ')
 

@@ -76,17 +76,17 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
                     # TODO: offer delayed fill
                     return QMessageBox.warning(self.parent, "Cannot fill an offer",
                                                "Exchange agent is currently busy with a trade, cannot fill an offer now",
-                                               QMessageBox.OK)
+                                               QMessageBox.Ok)
 
                 buy_or_sell = ["buy", "sell"][self.side != 'B']
 
-                btc_total, cc_total, price = self.parent.getOfferInfo(offer, fmt=True)
+                btc_total, cc_total, price, side = self.parent.getOfferInfo(offer, fmt=True)
 
                 msg = "You are about to %s %s %s at price %s per unit. Total cost: %s BTC. Proceed?" \
                     % (buy_or_sell, cc_total, self.parent.color_name, price, btc_total)
                 reply = QMessageBox.information(self.parent, "Fill an offer",
-                                                msg, QMessageBox.OK | QMessageBox.Cancel)
-                if reply==QMessageBox.OK:
+                                                msg, QMessageBox.Ok | QMessageBox.Cancel)
+                if reply==QMessageBox.Ok:
                     self.parent.agent.makeExchangeProposal(offer, None, offer.B['value'], None)
 
         def clickOrderButton(self):
@@ -223,7 +223,7 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
         tiplayout.addWidget(self.tipState, 1, 1)
         self.tipBuyOrSell = QLabel('')
         tiplayout.addWidget(self.tipBuyOrSell, 2, 0)
-        tiplayout.addWidget(QLabel("%s amt.:"), 3, 0)
+        tiplayout.addWidget(QLabel("%s amt.:" % self.color_name), 3, 0)
         self.tipCCAmount = QLabel('')
         tiplayout.addWidget(self.tipCCAmount, 3, 1)
 
@@ -255,7 +255,7 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
         self.ccBalance.setText(coin2strX(self.color,
                                          self.wlt.getBalanceX(self.color, "Total")))
 
-    def updatTIP(self):
+    def updateTIP(self):
         if self.agent and self.agent.hasActiveEP():
             ep = self.agent.active_ep
             self.tipState.setText(ep.state)
@@ -264,7 +264,7 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
             self.tipCCAmount.setText(total_cc)
             self.tipBtcAmount.setText(total_btc)
             self.tipPrice.setText(price)
-            self.tipTimeLeft.setText("%s sec." % (self.agent.ep_timeout - time.time()))
+            self.tipTimeLeft.setText("%s sec." % int(self.agent.ep_timeout - time.time()))
             self.tipbox.show()
         else:
             self.tipbox.hide()
@@ -276,6 +276,7 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
         self.showOrderBook()
         self.connStat.setText("Connection: active...") # TODO: detailed stats
         self.updateBalance()
+        self.updateTIP()
 
     def submitOffer(self, offer):
         self.agent.registerMyOffer(offer)
@@ -287,7 +288,6 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
 
         all_offers = self.agent.their_offers.values() + self.agent.my_offers.values()
         for offer in all_offers:
-            print offer.export()
             if offer.A['colorid'] == self.select_colorid:
                 asks.append(offer)
             elif offer.B['colorid'] == self.select_colorid:
@@ -333,9 +333,9 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
         action = ['bought', 'sold'][side == 'A']
 
         msg = "Trade executed successfully: you %s %s of %s at price %s per unit (%s BTC total)." \
-            % (action, total_cc, self.color_name, price, btc_total)
+            % (action, total_cc, self.color_name, price, total_btc)
         QMessageBox.information(self, "Transaction is complete",
-                                msg, QMessageBox.OK)
+                                msg, QMessageBox.Ok)
 
     def connectP2P(self):
         url = str(self.urlEdit.text()).strip()
