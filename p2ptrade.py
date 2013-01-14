@@ -224,6 +224,12 @@ class ExchangeProposal:
                 if invalid: raise Exception("Invalid input!")
 
 class ExchangePeerAgent:
+
+    class EventHook(list):
+        def __call__(self, *args, **kwargs):
+            for f in self:
+                f(*args, **kwargs)
+
     def __init__(self, wallet, comm):
         self.my_offers = dict()
         self.their_offers = dict()
@@ -231,7 +237,8 @@ class ExchangePeerAgent:
         self.active_ep = None
         self.ep_timeout = None
         self.comm = comm
-        self.match_orders = False
+        self.match_offers = False
+        self.onCompleteTrade = self.EventHook()
 
     def setActiveEP(self, ep):
         if ep == None:
@@ -273,6 +280,14 @@ class ExchangePeerAgent:
         self.my_offers[offer.oid] = offer
         self.match_offers = True
 
+    def cancelMyOffer(self, offer):
+        if self.active_ep and (self.active_ep.offer.oid == offer.oid
+                               or self.active_ep.my_offer.oid == offer.oid):
+            self.setActiveEP(None)
+        if offer.oid in self.my_offers:
+            del self.my_offers[offer.oid]
+
+
     def registerTheirOffer(self, offer):
         print "register oid %s " % offer.oid
         self.their_offers[offer.oid] = offer
@@ -293,11 +308,16 @@ class ExchangePeerAgent:
                         print "Exception during matching: %s" % e
                     if success: return
 
-    def makeExchangeProposal(self, orig_offer, my_address, my_value, related_offer):
+    def makeExchangeProposal(self, orig_offer, my_address, my_value, related_offer=None):
         if self.hasActiveEP():
             raise Exception, "already have active EP (in makeExchangeProposal"
         offer = ExchangeOffer(orig_offer.oid, orig_offer.A.copy(), orig_offer.B.copy())
         assert my_value == offer.B['value'] # TODO: support for partial fill
+        if not my_address:
+            if 'address' in related_offer.A:
+                my_address = related_offer.A['address']
+            else:
+                my_address = self.wallet.getNextUnusedAddress().getAddr160()
         offer.B['address'] = my_address
         acolor, bcolor = colorInd(offer.A), colorInd(offer.B)
         if acolor is None or bcolor is None:
@@ -346,11 +366,15 @@ class ExchangePeerAgent:
         self.postMessage(ep)
 
     def clearOrders(self, ep):
-        if ep.my_offer:
-            del self.my_offers[ep.my_offer.oid]
-            del self.their_offers[ep.offer.oid]
-        else:
-            del self.my_offers[ep.offer.oid]
+        try:
+            if ep.state == 'proposed':
+                if ep.my_offer:
+                    del self.my_offers[ep.my_offer.oid]
+                del self.their_offers[ep.offer.oid]
+            else:
+                del self.my_offers[ep.offer.oid]
+        except Exception as e:
+            print "there was an exception when clearing offers: %s" % e
 
     def updateExchangeProposal(self, ep):
         my_ep = self.active_ep
@@ -374,6 +398,7 @@ class ExchangePeerAgent:
             raise Exception("Not all inputs are signed for some reason")
         ep.etransaction.broadcast()
         self.clearOrders(self.active_ep)
+        self.onCompleteTrade(self.active_ep)
         self.setActiveEP(None)
         if my_ep.state == 'proposed':
             self.postMessage(ep)
@@ -414,7 +439,9 @@ class HTTPExchangeComm:
 
     def pollAndDispatch(self):
         url = self.url
-        if self.lastpoll != -1:
+        if self.lastpoll == -1:
+            url = url + '?from_timestamp=%s' % int(time.time() - standard_offer_expiry_interval)
+        else:
             url = url + '?from_serial=%s' % (self.lastpoll+1)
         u = urllib2.urlopen(url)
         try:

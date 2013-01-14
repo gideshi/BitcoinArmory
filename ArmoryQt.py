@@ -2199,6 +2199,15 @@ class ArmoryMainWindow(QMainWindow):
          return None
 
    def clickP2PTrade(self):
+      if self.coin_color < 0:
+         QMessageBox.warning(self, 'Ouch',
+                              'You need to select kind of coins you want to trade on P2P market.'
+                              'Trading Bitcoins for Bitcoins (almost) makes no sense :-)',
+                              QMessageBox.Ok)
+         return
+
+         
+
       wltID = self.selectWallet()
       if wltID:
          wlt = self.walletMap[wltID]
