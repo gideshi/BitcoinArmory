@@ -42,7 +42,8 @@ class jsonapi:
           rawdata = conn.execute('SELECT * From messages WHERE serial >= ? AND timestamp >= ?',
                      (from_serial, from_timestamp)).fetchall()
         data = [{'id':x[0],'timestamp':x[1],'serial':x[2],'content':json.loads(x[3])} for x in rawdata]
-        return json.dumps(sorted(data,key=lambda x:x['serial'])[:maxnum])
+        # select last maxnum at most
+        return json.dumps(sorted(data,key=lambda x:x['serial'])[-maxnum:])
         
     def POST(self):
         conn = sqlite3.connect('main.db')
