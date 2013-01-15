@@ -78,7 +78,8 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
                                                "Exchange agent is currently busy with a trade, cannot fill an offer now",
                                                QMessageBox.Ok)
 
-                buy_or_sell = ["buy", "sell"][self.side != 'B']
+                # we need to sell to fill a bid
+                buy_or_sell = ["buy", "sell"][self.side == 'B']
 
                 btc_total, cc_total, price, side = self.parent.getOfferInfo(offer, fmt=True)
 
@@ -123,9 +124,9 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
             olayout.addRow(QLabel("<b>%s %s</b>" % (buy_or_sell, self.color_name)))
 
             side.quantityEdit = QLineEdit()
-            olayout.addRow("Quantity", side.quantityEdit)
+            olayout.addRow("Quantity  <small>(units)</small>", side.quantityEdit)
             side.priceEdit = QLineEdit()
-            olayout.addRow("Price per unit (BTC)", side.priceEdit)
+            olayout.addRow("Price <small>(BTC/unit)</small>", side.priceEdit)
             olayout.addRow(QLabel("Total BTC:"))
             
             orderBtn = QPushButton(["Buy", "Sell"][side.side != 'B'])
@@ -186,7 +187,7 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
         self.con_layout.addWidget(self.connStat, 1, 0, 1, 2)
 
         sidebox = QWidget()
-        self.layout.addWidget(sidebox, 0, 3, 3, 1)
+        self.layout.addWidget(sidebox, 0, 3, 4, 1)
         sblayout = QVBoxLayout()
         sidebox.setLayout(sblayout)
         
@@ -207,13 +208,25 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
         blayout.addWidget(self.ccBalance, 2, 1)
         self.updateBalance()
 
-        
+        # trade log
+        tlview = QTableView()
+        tlview.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+        sblayout.addWidget(tlview)
+        self.tlitems = QStandardItemModel(0, 3)
+        tlview.setModel(self.tlitems)
+        tlview.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        tlview.horizontalHeader().setStretchLastSection(True)
+        tlview.verticalHeader().setDefaultSectionSize(20)
+        self.tlitems.setHorizontalHeaderLabels(["T", "Quantity", "Price"])
+        for i in xrange(3):
+            tlview.resizeColumnToContents(i)
+
         # trade in progress box
         tipbox = QFrame()
         tipbox.hide()
         self.tipbox = tipbox
         tipbox.setFrameStyle(QFrame.Box|QFrame.Sunken)
-        tipbox.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+        #tipbox.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Preferred)
         sblayout.addWidget(tipbox)
         tiplayout = QGridLayout()
         tipbox.setLayout(tiplayout)
@@ -223,11 +236,11 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
         tiplayout.addWidget(self.tipState, 1, 1)
         self.tipBuyOrSell = QLabel('')
         tiplayout.addWidget(self.tipBuyOrSell, 2, 0)
-        tiplayout.addWidget(QLabel("%s amt.:" % self.color_name), 3, 0)
+        tiplayout.addWidget(QLabel("%s:" % self.color_name), 3, 0)
         self.tipCCAmount = QLabel('')
         tiplayout.addWidget(self.tipCCAmount, 3, 1)
 
-        tiplayout.addWidget(QLabel("Bitcoin amt.:"), 4, 0)
+        tiplayout.addWidget(QLabel("Bitcoin:"), 4, 0)
         self.tipBtcAmount = QLabel('')
         tiplayout.addWidget(self.tipBtcAmount, 4, 1)
 
@@ -238,6 +251,7 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
         tiplayout.addWidget(QLabel("Time left:"), 6, 0)
         self.tipTimeLeft = QLabel('')
         tiplayout.addWidget(self.tipTimeLeft, 6, 1)
+
 
         # blank stretch items to avoid stretching of info boxes
         sblayout.addStretch(1)
@@ -259,8 +273,13 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
         if self.agent and self.agent.hasActiveEP():
             ep = self.agent.active_ep
             self.tipState.setText(ep.state)
-            total_btc, total_cc, price, side = self.getOfferInfo(ep.offer, fmt=True)
-            self.tipBuyOrSell.setText(['We buy', 'We sell'][side == 'A'])
+            total_btc, total_cc, price, cc_side = self.getOfferInfo(ep.offer, fmt=True)
+
+            my_side = ['A', 'B'][ep.state == 'proposed']
+            # if our side is colored then we are selling
+            action = ['We buy', 'We sell'][my_side == cc_side]
+
+            self.tipBuyOrSell.setText(action)
             self.tipCCAmount.setText(total_cc)
             self.tipBtcAmount.setText(total_btc)
             self.tipPrice.setText(price)
@@ -307,10 +326,10 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
     def getOfferInfo(self, offer, fmt=False):
         if offer.A['colorid'] == '':
             colored, uncolored = offer.B, offer.A
-            side = 'A'
+            side = 'B'
         elif offer.B['colorid'] == '':
             colored, uncolored = offer.A, offer.B
-            side = 'B'
+            side = 'A'
         else:
             raise Exception, "both sides are of offer are colored"
 
@@ -329,13 +348,29 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
         return (total_btc, total_cc, btc_per_unit, side)
 
     def notifyCompleteTrade(self, ep):
-        total_btc, total_cc, price, side = self.getOfferInfo(ep.offer, fmt=True)
-        action = ['bought', 'sold'][side == 'A']
+        total_btc, total_cc, price, colored_side = self.getOfferInfo(ep.offer, fmt=True)
+        
+        my_side = ['A', 'B'][ep.state == 'proposed']
+        action = ['bought', 'sold'][my_side == colored_side]
+        saction = ['B', 'S'][my_side == colored_side]
 
-        msg = "Trade executed successfully: you %s %s of %s at price %s per unit (%s BTC total)." \
-            % (action, total_cc, self.color_name, price, total_btc)
-        QMessageBox.information(self, "Transaction is complete",
-                                msg, QMessageBox.Ok)
+        t = time.localtime()
+        date = time.strftime('%Y-%m-%d %H:%M:%S', t)
+
+        # if our side is colored then we are selling
+        tooltip = "%s: You %s %s of %s at price %s per unit (%s BTC total)." \
+            % (date, action, total_cc, self.color_name, price, total_btc)
+
+        items = []
+
+        for s in [saction, total_cc, price]:
+            item = QStandardItem(s)
+            item.setToolTip(tooltip)
+            items.append(item)
+
+        self.tlitems.appendRow(items)
+
+#        self.complete_trade_msgs.append(msg)
 
     def connectP2P(self):
         url = str(self.urlEdit.text()).strip()

@@ -228,7 +228,10 @@ class ExchangePeerAgent:
     class EventHook(list):
         def __call__(self, *args, **kwargs):
             for f in self:
-                f(*args, **kwargs)
+                try:
+                    f(*args, **kwargs)
+                except Exception as e:
+                    print "Error: %s (in event hook call)"
 
     def __init__(self, wallet, comm):
         self.my_offers = dict()
