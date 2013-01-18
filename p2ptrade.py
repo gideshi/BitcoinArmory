@@ -157,11 +157,11 @@ class ExchangeTransaction:
         return self.txdp
 
     def broadcast(self):
-        self.getTxDP().pprint()
+        LOGDEBUG("ExchangeTransaction.broadcast: prepareFinalTx")
         finalTx = self.getTxDP().prepareFinalTx()
-        print "----- SUCCESS! BROADCASTING TRANSACTION -----"
-        finalTx.pprint()
+        LOGDEBUG("ExchangeTransaction.broadcast: broadcasting TX via engine")
         engine_broadcast_transaction(finalTx)
+        LOGDEBUG("ExchangeTransaction.broadcast: done")
 
     def getASCIITxDP(self):
         return self.getTxDP().serializeAscii()
@@ -199,15 +199,17 @@ class ExchangeProposal:
     # Does their tranche have enough of the color
     # that I want going to my address?
     def checkOutputsToMe(self,myaddress,color,value):
+        LOGDEBUG("checkOutputsToMe")
         txdp = self.etransaction.getTxDP()
+        LOGDEBUG("checkOutputsToMe:compute_pytx_colors")
         coloredOutputs = colortools.compute_pytx_colors(txdp.pytxObj)
-        print coloredOutputs
+        LOGDEBUG("checkOutputsToMe: %s", coloredOutputs)
         sumv = 0
         for out,col in zip(txdp.pytxObj.outputs,coloredOutputs):
           if TxOutScriptExtractAddr160(out.binScript) == myaddress:
             if col == color:
               sumv += out.value
-        print "Want %s of color %s, got %s" % (value, color, sumv)
+        LOGDEBUG("Want %s of color %s, got %s", value, color, sumv)
         return sumv >= value
 
     # Are all of the inputs in my tranche?
@@ -234,7 +236,7 @@ class ExchangePeerAgent:
                 try:
                     f(*args, **kwargs)
                 except Exception as e:
-                    print "Error: %s (in event hook call)"
+                    LOGERROR("Error %s (in event hook call", e)
 
     def __init__(self, wallet, comm):
         self.my_offers = dict()
@@ -262,14 +264,14 @@ class ExchangePeerAgent:
     def serviceMyOffers(self):
         for my_offer in self.my_offers.values():
             if my_offer.auto_post:
-                if not my_offer.expired(-standard_offer_grace_interval): continue
+                if not my_offer.expired(+standard_offer_grace_interval): continue
                 if self.active_ep and self.active_ep.offer.oid == my_offer.oid: continue
                 my_offer.refresh()
                 self.postMessage(my_offer)
                 
     def serviceTheirOffers(self):
         for their_offer in self.their_offers.values():
-            if their_offer.expired(+standard_offer_grace_interval):
+            if their_offer.expired(-standard_offer_grace_interval):
                 del self.their_offers[their_offer.oid]
 
     def updateState(self):
@@ -295,7 +297,7 @@ class ExchangePeerAgent:
 
 
     def registerTheirOffer(self, offer):
-        print "register oid %s " % offer.oid
+        LOGINFO("register oid %s ", offer.oid)
         self.their_offers[offer.oid] = offer
         offer.refresh()
         self.match_offers = True
@@ -311,7 +313,7 @@ class ExchangePeerAgent:
                         self.makeExchangeProposal(their_offer, my_offer.A['address'], my_offer.A['value'], my_offer)
                         success = True
                     except Exception as e:
-                        print "Exception during matching: %s" % e
+                        LOGERROR("Exception during matching offer %s", e)
                     if success: return
 
     def makeExchangeProposal(self, orig_offer, my_address, my_value, related_offer=None):
@@ -330,21 +332,24 @@ class ExchangePeerAgent:
             raise Exception("My colorid is not recognized")
         my_tranche = MyTranche.createPayment(self.wallet, bcolor, my_value, offer.A['address'])
         ep = ExchangeProposal()
+	LOGDEBUG("makeExchangeProposal:create new EP")
         ep.createNew(offer, my_tranche, related_offer)
         self.setActiveEP(ep)
+	LOGDEBUG("makeExchangeProposa: postMessage")
         self.postMessage(ep)
+	LOGDEBUG("makeExchangeProposal:done")
 
     def dispatchExchangeProposal(self, ep_data):
         ep = ExchangeProposal()
         ep.importTheirs(ep_data)
-        print "ep oid:%s, pid:%s, ag:%s" % (ep.offer.oid, ep.pid, self)        
+        LOGINFO("ep oid:%s, pid:%s, ag:%s", ep.offer.oid, ep.pid, self)
         if self.hasActiveEP():
-            print "has active EP"
+            LOGDEBUG("has active EP")
             if ep.pid == self.active_ep.pid:
                 return self.updateExchangeProposal(ep)
         else:
             if ep.offer.oid in self.my_offers:
-                print "accept exchange proposal"
+                LOGDEBUG("accept exchange proposal")
                 return self.acceptExchangeProposal(ep)
         # We have neither an offer nor a proposal matching this ExchangeProposal
         if ep.offer.oid in self.their_offers:
@@ -380,18 +385,22 @@ class ExchangePeerAgent:
             else:
                 del self.my_offers[ep.offer.oid]
         except Exception as e:
-            print "there was an exception when clearing offers: %s" % e
+            LOGERROR("there was an exception when clearing offers: %s", e)
 
     def updateExchangeProposal(self, ep):
+        LOGDEBUG("updateExchangeProposal")
         my_ep = self.active_ep
         assert my_ep and my_ep.pid == ep.pid
         offer = my_ep.offer
         acolor, bcolor = colorInd(offer.A), colorInd(offer.B)
 
+        LOGDEBUG("my_ep.state = %s", my_ep.state)
+
         if my_ep.state == 'proposed':
             if not ep.checkOutputsToMe(offer.B['address'], acolor, offer.A['value']): 
                 raise Exception("Offer does not contain enough coins of the color that I want for me")
             ep.my_tranche = my_ep.my_tranche
+            LOGDEBUG("updateExchangeProposal: signing my tranche")
             ep.signMyTranche(self.wallet)
         elif my_ep.state == 'accepted':
             if not ep.checkOutputsToMe(offer.A['address'], bcolor, offer.B['value']): 
@@ -402,11 +411,15 @@ class ExchangePeerAgent:
 
         if not (ep.etransaction.getTxDP().checkTxHasEnoughSignatures()):
             raise Exception("Not all inputs are signed for some reason")
+        LOGDEBUG("updateExchangeProposal: broadcast tx")
         ep.etransaction.broadcast()
+        LOGDEBUG("updateExchangeProposal: updating state")
         self.clearOrders(self.active_ep)
         self.onCompleteTrade(self.active_ep)
         self.setActiveEP(None)
+        LOGDEBUG("updateExchangeProposal: done")
         if my_ep.state == 'proposed':
+            LOGDEBUG("updateExchangeProposal: post message")
             self.postMessage(ep)
 
     def postMessage(self, obj):
@@ -420,7 +433,7 @@ class ExchangePeerAgent:
             elif 'pid' in content:
                 self.dispatchExchangeProposal(content)
         except Exception as e:
-            print "got exception %s when dispatching a message" % e
+            LOGERROR("got exception %s when dispatching a message", e)
 
 
 class HTTPExchangeComm:
@@ -437,9 +450,9 @@ class HTTPExchangeComm:
         msgid = make_random_id()
         content['msgid'] = msgid
         self.own_msgids.add(msgid)
-        print "----- POSTING MESSAGE -----"
-        print content
+        LOGDEBUG( "----- POSTING MESSAGE ----")
         data = json.dumps(content)
+        LOGDEBUG(data)
         u = urllib2.urlopen(self.url, data)
         return u.read() == 'Success'
 
@@ -471,7 +484,7 @@ class HTTPExchangeComm:
         try:
             self.update()
             return True
-        except Except as e:
+        except Exception as e:
             LOGERROR("Error in  HTTPExchangeComm.update: %s", e)
             return False
 

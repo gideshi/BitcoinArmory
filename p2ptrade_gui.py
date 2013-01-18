@@ -299,9 +299,10 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
                 self.showOrderBook()
             else:
                 connstate = '<b>defunct</b>'
-                self.connStat.setText("Connection: %s" % connstate)
-                self.updateBalance()
-                self.updateTIP()
+
+            self.connStat.setText("Connection: %s" % connstate)
+            self.updateBalance()
+            self.updateTIP()
         except Exception as e:
             LOGERROR("Unexpected error in P2P Dialog update: %s", e)
 

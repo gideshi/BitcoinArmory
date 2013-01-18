@@ -157,11 +157,11 @@ def compute_pytx_colors(pytx):
         outindex = inp.outpoint.txOutIndex
         color = get_output_color_index(txhash, outindex)
         prevtx = TheBDM.getTxByHash(txhash)
-        if not prevtx:
-            raise Exception("Could not find referenced tx")
+        if not prevtx.isInitialized():
+            raise Exception("Could not find referenced tx %s", binary_to_hex(txHash, endOut=BIGENDIAN))
         value = prevtx.getTxOut(outindex).getValue()
         inputs.append([value, color])
-    print "Inputs", inputs
+    LOGDEBUG("compute_pytx_colors: Inputs: %s", inputs)
     outputs = []
     for outpt in pytx.outputs:
         outputs.append([outpt.value, COLOR_UNKNOWN])
