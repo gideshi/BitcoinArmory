@@ -303,7 +303,7 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
                 self.updateBalance()
                 self.updateTIP()
         except Exception as e:
-            LOGERROR("Unexpected error in P2P Dialog update: ", e)
+            LOGERROR("Unexpected error in P2P Dialog update: %s", e)
 
     def submitOffer(self, offer):
         self.agent.registerMyOffer(offer)

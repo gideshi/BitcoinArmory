@@ -96,7 +96,7 @@ class MyTranche(object):
             fee = 2 * MIN_TX_FEE
         else:
             fee = 0
-        LOGDEBUG("MyTranche.createPayment: select coins: ", amount, fee)
+        LOGDEBUG("MyTranche.createPayment: select coins: %s, %s", amount, fee)
         p.utxoSelect = PySelectCoins(p.utxoList, amount, fee)
         if p.utxoSelect:
             totalSelectCoins = sum([u.getValue() for u in p.utxoSelect])
@@ -472,7 +472,7 @@ class HTTPExchangeComm:
             self.update()
             return True
         except Except as e:
-            LOGERROR("Error in  HTTPExchangeComm.update:", e)
+            LOGERROR("Error in  HTTPExchangeComm.update: %s", e)
             return False
 
     def startUpdateLoopThread(self, period=15):
