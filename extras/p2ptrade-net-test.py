@@ -52,7 +52,7 @@ from twisted.internet import reactor
 
 def update_loop():
     for c in comms:
-        c.update()
+        c.safeUpdate()
     reactor.callLater(5, update_loop)
 
 reactor.callLater(5, update_loop)

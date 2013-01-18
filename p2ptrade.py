@@ -5,7 +5,6 @@ import json
 import copy
 import urllib2
 import threading, time
-from ast import literal_eval as safe_eval
 
 def make_random_id():
     bits = os.urandom(8)
@@ -13,8 +12,8 @@ def make_random_id():
 
 def colorInd(o): return colortools.find_color_index(o['colorid'])
 
-standard_offer_expiry_interval = 60 * 2
-standard_offer_grace_interval = 20
+standard_offer_expiry_interval = 60
+standard_offer_grace_interval = 15
 
 class ExchangeOffer(object): 
     # A = offerer's side, B = replyer's side
@@ -97,6 +96,7 @@ class MyTranche(object):
             fee = 2 * MIN_TX_FEE
         else:
             fee = 0
+        LOGDEBUG("MyTranche.createPayment: select coins: ", amount, fee)
         p.utxoSelect = PySelectCoins(p.utxoList, amount, fee)
         if p.utxoSelect:
             totalSelectCoins = sum([u.getValue() for u in p.utxoSelect])
@@ -106,13 +106,16 @@ class MyTranche(object):
                 addr = p.utxoSelect[0].getRecipientAddr()
                 # TODO: check invalid addr?
                 p.recipientPairs.append([addr, change])
+            LOGDEBUG("MyTranche.createPayment: done")
             return p
         else:
             raise Exception("not enough money(?)")
 
     def makeTxDistProposal(self):
         txdp = PyTxDistProposal()
+        LOGDEBUG("MyTranche.makeTxDistProposal start")
         txdp.createFromTxOutSelection(self.utxoSelect, self.recipientPairs)
+        LOGDEBUG("MyTranche.makeTxDistProposal done")
         return txdp
 
 
@@ -257,7 +260,7 @@ class ExchangePeerAgent:
         return self.active_ep != None
 
     def serviceMyOffers(self):
-        for my_offer in self.my_offers.itervalues():
+        for my_offer in self.my_offers.values():
             if my_offer.auto_post:
                 if not my_offer.expired(-standard_offer_grace_interval): continue
                 if self.active_ep and self.active_ep.offer.oid == my_offer.oid: continue
@@ -265,7 +268,7 @@ class ExchangePeerAgent:
                 self.postMessage(my_offer)
                 
     def serviceTheirOffers(self):
-        for their_offer in self.their_offers.itervalues():
+        for their_offer in self.their_offers.values():
             if their_offer.expired(+standard_offer_grace_interval):
                 del self.their_offers[their_offer.oid]
 
@@ -300,8 +303,8 @@ class ExchangePeerAgent:
     def matchOffers(self):
         if self.hasActiveEP():
             return
-        for my_offer in self.my_offers.itervalues():
-            for their_offer in self.their_offers.itervalues():
+        for my_offer in self.my_offers.values():
+            for their_offer in self.their_offers.values():
                 if my_offer.matches(their_offer):
                     success = False
                     try:
@@ -447,30 +450,36 @@ class HTTPExchangeComm:
         else:
             url = url + '?from_serial=%s' % (self.lastpoll+1)
         u = urllib2.urlopen(url)
-        try:
-            resp = json.loads(u.read())
-            for x in resp:
-                if int(x.get('serial',0)) > self.lastpoll: self.lastpoll = int(x.get('serial',0))
-                content = x.get('content',None)
-                if content and not content.get('msgid', '') in self.own_msgids:
-                    for a in self.agents:
-                        a.dispatchMessage(content)
-            return True      
-        except:
-            print "----- ERROR -----"
-            print sys.exc_info()
-            return False
+        resp = json.loads(u.read())
+        for x in resp:
+            if int(x.get('serial',0)) > self.lastpoll: self.lastpoll = int(x.get('serial',0))
+            content = x.get('content',None)
+            if content and not content.get('msgid', '') in self.own_msgids:
+                for a in self.agents:
+                    a.dispatchMessage(content)
+
 
     def update(self):
+        # raises exception in case of a problem
         self.pollAndDispatch()
+        # agent state is not updated if poll raises exception
         for a in self.agents:
             a.updateState()
+        return True
+
+    def safeUpdate(self):
+        try:
+            self.update()
+            return True
+        except Except as e:
+            LOGERROR("Error in  HTTPExchangeComm.update:", e)
+            return False
 
     def startUpdateLoopThread(self, period=15):
         def infipoll():
             while 1:
                 time.sleep(period)
-                self.update()
+                self.safeUpdate()
         t = threading.Thread(target=infipoll)
         t.daemon = True
         t.start()

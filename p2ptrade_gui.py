@@ -208,6 +208,8 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
         blayout.addWidget(self.ccBalance, 2, 1)
         self.updateBalance()
 
+        sblayout.addWidget(QLabel("<b>My trades:</b>"))
+
         # trade log
         tlview = QTableView()
         tlview.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
@@ -289,13 +291,19 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
             self.tipbox.hide()
 
     def update(self):
-        if not self.agent:
-            return
-        self.comm.update()
-        self.showOrderBook()
-        self.connStat.setText("Connection: active...") # TODO: detailed stats
-        self.updateBalance()
-        self.updateTIP()
+        try:
+            if not self.agent:
+                return
+            if self.comm.safeUpdate():
+                connstate = 'active'
+                self.showOrderBook()
+            else:
+                connstate = '<b>defunct</b>'
+                self.connStat.setText("Connection: %s" % connstate)
+                self.updateBalance()
+                self.updateTIP()
+        except Exception as e:
+            LOGERROR("Unexpected error in P2P Dialog update: ", e)
 
     def submitOffer(self, offer):
         self.agent.registerMyOffer(offer)
@@ -369,8 +377,6 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
             items.append(item)
 
         self.tlitems.appendRow(items)
-
-#        self.complete_trade_msgs.append(msg)
 
     def connectP2P(self):
         url = str(self.urlEdit.text()).strip()
