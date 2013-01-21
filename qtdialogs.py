@@ -7550,8 +7550,6 @@ class DlgPaperBackup(ArmoryDialog):
           painter.setRenderHint(QPainter.TextAntialiasing)
           self.scene.render(painter)
 
-
-
 class DlgBadConnection(ArmoryDialog):
    def __init__(self, haveInternet, haveSatoshi, parent=None, main=None):
       super(DlgBadConnection, self).__init__(parent, main)

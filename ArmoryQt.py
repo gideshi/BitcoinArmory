@@ -46,6 +46,7 @@ from qtdefines    import *
 from armorycolors import Colors, htmlColor, QAPP
 
 from pyinterp import MyInterpreter
+from subprocess import Popen
 
 import qrc_img_resources
 
@@ -914,16 +915,39 @@ class ArmoryMainWindow(QMainWindow):
       LOGINFO('Bitcoin-Qt/bitcoind is Available: %s', self.satoshiAvail)
          
       self.isOnline = (self.internetAvail and self.satoshiAvail and not CLI_OPTIONS.offline)
+      
+
+      have_bitcoinqt = False
+      if not self.isOnline and not CLI_OPTIONS.offline and OS_WINDOWS and USE_TESTNET and self.internetAvail:
+         bitcoinqt_path = os.path.join(os.getcwd(), "BitcoinQt", "BitcoinQt.exe")
+         have_bitcoinqt = os.path.exists(bitcoinqt_path)
+         
+      if not self.isOnline and not CLI_OPTIONS.offline and OS_WINDOWS and USE_TESTNET and self.internetAvail and have_bitcoinqt:
+         res = QMessageBox.warning("Network not available",
+                                   "Armory was not able to detect running Bitcoin-Qt or bitcoind."
+                                   "Should we run bundled Bitcoin-Qt?", QMessageBox.Ok | QMessageBox.Cancel)
+         if res == QMessageBox.Ok:
+            bitcoinqt_path = os.path.join(os.getcwd(), "BitcoinQt", "BitcoinQt.exe")
+            p = Popen(["Bitcoin-qt.exe", "-testnet"])
+            res = QMessageBox.warning("Waiting Bitcoin sync",
+                                       "Please press OK when Bitcoin-Qt is fully synchronized with the network."
+                                       "(It takes about 10 minutes on testnet.)",
+                                       QMessageBox.Ok | QMessageBox.Cancel)
+            if res == QMessageBox.Ok:
+               self.isOnline = True
+               self.satoshiAvail = True # let's trust user on this"
+            else:
+               self.abortLoad = True
+         else:
+            self.abortLoad = True
 
       if not self.isOnline:
-         if not CLI_OPTIONS.offline:
+         if not CLI_OPTIONS.offline and not self.abortLoad:
             dlg = DlgBadConnection(self.internetAvail, self.satoshiAvail, self, self)
             dlg.exec_()
          self.NetworkingFactory = FakeClientFactory()
          return
-   
-
-
+      
       from twisted.internet import reactor
       def restartConnection(protoObj, failReason):
          QMessageBox.critical(self, 'Lost Connection', \
