@@ -4,8 +4,8 @@ import json
 from armoryengine import *
 import urllib2
 
-definition_url_template = "http://srv7.coventry.fennec.name:8080/static/colordefs/%s.colordef"
-post_definition_url = "http://srv7.coventry.fennec.name:8080/publish"
+definition_url_template = "http://btx.udoidio.info:8080/static/colordefs/%s.colordef"
+post_definition_url = "http://btx.udoidio.info:8080/publish"
 
 def store_color_def(colordef):
     colorid = colordef['colorid']

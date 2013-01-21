@@ -180,7 +180,7 @@ class P2PTradeDialog(qtdialogs.ArmoryDialog):
         self.connect(self.connectBtn, SIGNAL('clicked()'), self.connectP2P)
 
         self.urlEdit = QLineEdit()
-        self.urlEdit.setText('http://srv7.coventry.fennec.name:8090/messages')
+        self.urlEdit.setText('http://btx.udoidio.info:8090/messages')
         self.con_layout.addWidget(self.urlEdit, 0, 1, 1, 3)
         
         self.connStat = QLabel('')
